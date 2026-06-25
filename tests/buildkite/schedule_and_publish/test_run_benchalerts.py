@@ -1,4 +1,5 @@
 import json
+import subprocess
 from typing import Optional
 
 import sqlalchemy as s
@@ -8,14 +9,51 @@ from buildkite.schedule_and_publish.run_benchalerts import run_benchalerts
 from config import Config
 from models.benchmarkable import Benchmarkable
 from models.run import Run
-from tests.helpers import (
-    machine_configs,
-    make_github_webhook_event_for_comment,
-    outbound_requests,
-    test_benchmarkable_id,
-)
+from tests.helpers import (machine_configs,
+                           make_github_webhook_event_for_comment,
+                           outbound_requests, test_benchmarkable_id)
 
 machines = list(machine_configs.keys())
+report_url = "https://conbench.example/reports/1234"
+
+
+def fake_conbench_ci_report(monkeypatch, status="failure"):
+    calls = []
+    monkeypatch.setattr(
+        Config, "CONBENCH_URL", "http://mocked-integrations:9999/conbench"
+    )
+
+    def run(cmd, capture_output, text, check):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(
+            cmd,
+            1 if status in ["failure", "action_required"] else 0,
+            stdout=json.dumps(
+                {
+                    "status": status,
+                    "status_reason": "benchmark regressions detected",
+                    "report_url": report_url,
+                    "summary": {
+                        "runs": 2,
+                        "contender_results": 20,
+                        "compared": 18,
+                        "analyzed": 18,
+                        "regressions": 1,
+                        "benchmark_errors": 0,
+                    },
+                }
+            )
+            + "\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr("models.benchalerts_run.subprocess.run", run)
+    return calls
+
+
+def flag_value(cmd, flag):
+    index = cmd.index(flag)
+    return cmd[index + 1]
 
 
 def last_pr_comment_body_posted() -> Optional[str]:
@@ -40,22 +78,13 @@ def assert_last_pr_comment_was_pending():
     assert last_pr_comment_body_posted() == expected_comment_body
 
 
-def assert_last_pr_comment_was_benchalerts_regression():
-    assert last_pr_comment_body_posted()
-    # Don't check the exact text of the comment because it changes often
-    assert "performance regression" in last_pr_comment_body_posted()
-    # Ensure there's a link to the posted report (a GitHub Check)
-    assert (
-        "https://github.com/github/hello-world/runs/4" in last_pr_comment_body_posted()
-    )
-
-
 def assert_no_pr_comment_was_posted():
     assert last_pr_comment_body_posted() is None
 
 
-def test_run_benchalerts_on_pr_request(client):
+def test_run_benchalerts_on_pr_request(client, monkeypatch):
     outbound_requests.clear()
+    conbench_calls = fake_conbench_ci_report(monkeypatch)
 
     make_github_webhook_event_for_comment(
         client, comment_body="@ursabot please benchmark"
@@ -72,6 +101,7 @@ def test_run_benchalerts_on_pr_request(client):
 
     run_benchalerts()
     assert_last_pr_comment_was_pending()
+    assert conbench_calls == []
 
     # Finish the other machine
     for run in Run.all():
@@ -81,14 +111,29 @@ def test_run_benchalerts_on_pr_request(client):
             run.save()
 
     run_benchalerts()
-    assert_last_pr_comment_was_benchalerts_regression()
+    assert len(conbench_calls) == 1
+    cmd = conbench_calls[0]
+    assert cmd[:3] == ["conbench", "ci", "report"]
+    assert flag_value(cmd, "--server") == Config.CONBENCH_URL
+    assert flag_value(cmd, "--repository") == "apache/arrow"
+    assert flag_value(cmd, "--commit") == test_benchmarkable_id
+    assert "--baseline-run-ids" in cmd
+    assert "--baseline" not in cmd
+    assert flag_value(cmd, "--github-pr-number") == "1234"
+    assert "--github-check" in cmd
+    assert "--github-pr-comment" in cmd
 
     # Verify pull comment was marked finished since all runs have status = "finished"
-    assert Benchmarkable.get(test_benchmarkable_id).benchalerts_runs[0].finished_at
+    benchalerts_run = Benchmarkable.get(test_benchmarkable_id).benchalerts_runs[0]
+    assert benchalerts_run.finished_at
+    assert benchalerts_run.status == "failure"
+    assert benchalerts_run.check_link == report_url
+    assert benchalerts_run.pr_comment_link == report_url
 
 
-def test_run_benchalerts_on_merged_pull_requests():
+def test_run_benchalerts_on_merged_pull_requests(monkeypatch):
     outbound_requests.clear()
+    conbench_calls = fake_conbench_ci_report(monkeypatch)
 
     get_commits()
     contender = Benchmarkable.get("f2f663be0a87e13c9cd5403dea51379deb4cf04d")
@@ -114,6 +159,17 @@ def test_run_benchalerts_on_merged_pull_requests():
         run.save()
 
     run_benchalerts()
-    assert_last_pr_comment_was_benchalerts_regression()
+    assert len(conbench_calls) == 1
+    cmd = conbench_calls[0]
+    assert cmd[:3] == ["conbench", "ci", "report"]
+    assert flag_value(cmd, "--server") == Config.CONBENCH_URL
+    assert flag_value(cmd, "--repository") == "apache/arrow"
+    assert flag_value(cmd, "--commit") == contender.id
+    assert "--baseline-run-ids" in cmd
+    assert "--baseline" not in cmd
+    assert flag_value(cmd, "--github-pr-number") == str(contender.pull_number)
+    assert "--github-check" in cmd
+    assert "--github-pr-comment" in cmd
 
     assert contender.benchalerts_runs[0].finished_at
+    assert contender.benchalerts_runs[0].status == "failure"

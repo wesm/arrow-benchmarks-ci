@@ -1,23 +1,15 @@
-import dataclasses
+import json
 import os
-from copy import deepcopy
+import subprocess
 from datetime import datetime
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
-import requests
 import sqlalchemy as s
-from benchalerts import Alerter, AlertPipeline
-from benchalerts import pipeline_steps as steps
-from benchalerts.conbench_dataclasses import FullComparisonInfo, RunComparisonInfo
-from benchalerts.integrations.github import CheckStatus, GitHubRepoClient
-from benchalerts.message_formatting import _list_results
-from benchclients.conbench import ConbenchClient
-from benchclients.logging import log as benchalerts_log
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, mapped_column
 
+from config import Config
 from db import Base
-from integrations import adapter
 from logger import log
 from models.base import BaseMixin
 from utils import generate_uuid
@@ -54,15 +46,17 @@ class BenchalertsRun(Base, BaseMixin):
         )
 
     def run_benchalerts(self) -> None:
-        """Run a benchalerts pipeline to find possible errors/regressions and post
-        about them in a GitHub Check and PR comment. Then mark this run as finished.
+        """Ask Conbench v2 to publish the CI report, then mark this run as finished.
+
+        This scheduler still owns Buildkite readiness and persistence. The comparison,
+        GitHub Check, and PR comment are Conbench responsibilities in v2.
         """
         if self.reason.endswith("-wheel"):
             # No alerting on wheels for now.
             log.info(
                 f"Skipping benchalerts for {self.benchmarkable_id} because it's a wheel"
             )
-            self.mark_finished(comparison=None, check_link=None, pr_comment_link=None)
+            self.mark_finished(report=None)
             return
 
         # For all other reasons, the benchmarkable ID is the commit hash
@@ -73,33 +67,25 @@ class BenchalertsRun(Base, BaseMixin):
         pr_number: Optional[int] = self.benchmarkable.pull_number
         if not pr_number:
             log.warning(f"Skipping benchalerts for {commit_hash}: no PR number found")
-            self.mark_finished(comparison=None, check_link=None, pr_comment_link=None)
+            self.mark_finished(report=None)
             return
 
-        if self.reason == "pull-request":
-            # Compare against the default-branch commit from which the PR was forked
-            baseline_run_type = steps.BaselineRunCandidates.fork_point
-        else:
-            # Compare against the parent commit of the merge-commit
-            baseline_run_type = steps.BaselineRunCandidates.parent
-
-        # During pytest we want to mock the HTTP APIs
-        if os.getenv("GITHUB_API_BASE_URL", "").startswith(
-            "http://mocked-integrations"
-        ):
-            log.info("Using mocked integrations")
-            conbench_client = MockBenchclientsConbenchClient(adapter=adapter)
-            github_client = MockBenchalertsGitHubClient(adapter=adapter)
-        else:
-            conbench_client = None
-            github_client = None
-
-        run_ids = [run.id for run in self.benchmarkable.runs]
+        contender_runs = self.publishable_runs(self.benchmarkable)
+        run_ids = [run.id for run in contender_runs]
         log.info(f"Analyzing run IDs: {run_ids}")
+        if not run_ids:
+            log.warning(f"Skipping benchalerts for {commit_hash}: no publishable runs")
+            self.mark_finished(
+                report={
+                    "status": "skipped",
+                    "status_reason": "no publishable benchmark runs",
+                }
+            )
+            return
 
         possible_build_urls = [
             run.buildkite_build_web_url
-            for run in self.benchmarkable.runs
+            for run in contender_runs
             if run.buildkite_build_web_url
         ]
         log.info(
@@ -107,265 +93,109 @@ class BenchalertsRun(Base, BaseMixin):
         )
         build_url = possible_build_urls[0] if possible_build_urls else None
 
-        benchalerts_log.setLevel("DEBUG")
-
-        alerter = ArrowAlerter(commit_hash=commit_hash, reason=self.reason)
-
-        pipeline = AlertPipeline(
-            steps=[
-                steps.GetConbenchZComparisonForRunsStep(
-                    run_ids=run_ids,
-                    baseline_run_type=baseline_run_type,
-                    z_score_threshold=30,
-                    step_name="z_comparison",
-                    conbench_client=conbench_client,
-                ),
-                steps.GitHubCheckStep(
-                    commit_hash=commit_hash,
-                    comparison_step_name="z_comparison",
-                    repo=self.benchmarkable.repo,
-                    github_client=github_client,
-                    alerter=alerter,
-                    build_url=build_url,
-                ),
-                steps.GitHubPRCommentAboutCheckStep(
-                    pr_number=pr_number,
-                    repo=self.benchmarkable.repo,
-                    github_client=github_client,
-                    alerter=alerter,
-                ),
-                # TODO: post to Slack about failures, create GitHub issues?
-            ]
+        cmd = self.conbench_ci_report_command(
+            run_ids=run_ids,
+            contender_runs=contender_runs,
+            build_url=build_url,
         )
-
-        output = pipeline.run_pipeline()
-        self.mark_finished(
-            comparison=output["z_comparison"],
-            check_link=output["GitHubCheckStep"][0]["html_url"],
-            pr_comment_link=output["GitHubPRCommentAboutCheckStep"]["html_url"],
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
         )
+        if result.returncode not in [0, 1]:
+            raise RuntimeError(
+                "conbench ci report failed with exit code "
+                f"{result.returncode}: {result.stderr or result.stdout}"
+            )
 
-    def mark_finished(
-        self,
-        comparison: Optional[FullComparisonInfo],
-        check_link: Optional[str],
-        pr_comment_link: Optional[str],
-    ) -> None:
-        """Mark this run as finished, and save the comparison data."""
-        if comparison:
-            alerter = ArrowAlerter(commit_hash="doesn't matter", reason=self.reason)
-            self.status = alerter.github_check_status(comparison).value
-            # We used to do this, but these days this is so big that the BK job is
-            # getting OOM killed.
-            # self.output = dataclasses.asdict(comparison)
-            self.output = {"finished": True}
-        if check_link:
-            self.check_link = check_link
-        if pr_comment_link:
-            self.pr_comment_link = pr_comment_link
+        try:
+            report = json.loads(result.stdout)
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"could not decode conbench ci report JSON: {e}") from e
+
+        self.mark_finished(report=report)
+
+    def conbench_ci_report_command(self, run_ids, contender_runs, build_url):
+        if not Config.CONBENCH_URL:
+            raise RuntimeError("CONBENCH_URL is required to publish Conbench reports")
+
+        cmd = [
+            os.getenv("CONBENCH_CLI", "conbench"),
+            "ci",
+            "report",
+            "--server",
+            Config.CONBENCH_URL,
+            "--repository",
+            self.benchmarkable.repo,
+            "--commit",
+            self.benchmarkable_id,
+            "--run-ids",
+            ",".join(run_ids),
+            "--github-check",
+            "--github-pr-comment",
+            "--github-pr-number",
+            str(self.benchmarkable.pull_number),
+            "--github-external-id",
+            self.id,
+        ]
+        if build_url:
+            cmd.extend(["--build-url", build_url])
+
+        baseline_run_ids = self.baseline_run_ids(contender_runs)
+        if baseline_run_ids:
+            cmd.extend(["--baseline-run-ids", ",".join(baseline_run_ids)])
+        elif self.reason == "pull-request":
+            cmd.extend(["--baseline", "fork_point"])
+        else:
+            cmd.extend(["--baseline", "parent"])
+
+        return cmd
+
+    def baseline_run_ids(self, contender_runs):
+        baseline = self.benchmarkable.baseline
+        if not baseline:
+            return []
+
+        baseline_runs_by_machine = {
+            run.machine_name: run.id for run in self.publishable_runs(baseline)
+        }
+        baseline_run_ids = []
+        for run in contender_runs:
+            baseline_run_id = baseline_runs_by_machine.get(run.machine_name)
+            if not baseline_run_id:
+                log.warning(
+                    "No baseline run found for benchmarkable "
+                    f"{self.benchmarkable_id} on machine {run.machine_name}; "
+                    "falling back to Conbench baseline selection"
+                )
+                return []
+            baseline_run_ids.append(baseline_run_id)
+
+        return baseline_run_ids
+
+    @staticmethod
+    def publishable_runs(benchmarkable):
+        return [
+            run for run in benchmarkable.runs if run.machine.publish_benchmark_results
+        ]
+
+    def mark_finished(self, report: Optional[dict]) -> None:
+        """Mark this run as finished, and save compact report metadata."""
+        if report:
+            self.status = report.get("status")
+            self.output = {
+                "finished": True,
+                "status_reason": report.get("status_reason"),
+                "summary": report.get("summary"),
+            }
+            report_url = report.get("report_url")
+            if report_url:
+                # Conbench v2 posts GitHub output itself. Store the report URL in the
+                # old link fields so existing Buildkite and Slack surfaces keep working.
+                self.check_link = report_url
+                self.pr_comment_link = report_url
 
         self.finished_at = s.sql.func.now()
         self.save()
-
-
-class MockBenchalertsGitHubClient(GitHubRepoClient):
-    """During pytest, bypass the hassle of mocking the GitHub App login."""
-
-    def __init__(self, adapter):
-        self._is_github_app_token = True
-        self.session = requests.Session()
-        self.session.mount("http://", adapter)
-        self.base_url = os.environ["GITHUB_API_BASE_URL"] + "/repos/apache/arrow"
-
-
-class MockBenchclientsConbenchClient(ConbenchClient):
-    """During pytest, bypass the hassle of mocking the Conbench login."""
-
-    def __init__(self, adapter):
-        super().__init__()
-        self.session.mount("https://", adapter)
-
-    def _login_or_raise(self) -> None:
-        pass
-
-
-class ArrowAlerter(Alerter):
-    """Customize messages and logic for this Arrow repo."""
-
-    def __init__(self, commit_hash: str, reason: str) -> None:
-        super().__init__()
-        self.commit_hash = commit_hash
-        self.reason = reason
-
-    def intro_sentence(self, full_comparison: FullComparisonInfo) -> str:
-        num_runs = len(full_comparison.run_comparisons)
-        s = "" if num_runs == 1 else "s"
-        have = "has" if num_runs == 1 else "have"
-
-        if self.reason == "pull-request":
-            intro = self.clean(
-                f"""
-                Thanks for your patience. Conbench analyzed the {num_runs} benchmarking
-                run{s} that {have} been run so far on PR commit {self.commit_hash}.
-                """
-            )
-        else:
-            intro = self.clean(
-                f"""
-                After merging your PR, Conbench analyzed the {num_runs} benchmarking
-                run{s} that {have} been run so far on merge-commit {self.commit_hash}.
-                """
-            )
-
-        return intro + "\n\n"
-
-    @staticmethod
-    def _is_known_unstable(result_info: dict) -> bool:
-        """Whether a benchmark result is known to sometimes produce false positives when
-        applying the lookback z-score analysis, and should be treated differently in
-        alerts.
-
-        result_info looks like the response from this endpoint:
-        https://conbench.ursa.dev/api/redoc#tag/Comparisons/paths/~1api~1compare~1benchmark-results~1%7Bcompare_ids%7D~1/get
-        """
-        contender = result_info["contender"]
-        if not contender:
-            return False
-        return contender["language"] not in ["Python", "R"]
-
-    def _separate_known_unstable_benchmarks(
-        self,
-        full_comparison: FullComparisonInfo,
-    ) -> Tuple[FullComparisonInfo, FullComparisonInfo]:
-        """Separate out certain benchmarks that are known to be unstable, so that we
-        alert differently for them.
-        """
-        stable_comparison = FullComparisonInfo(run_comparisons=[])
-        unstable_comparison = FullComparisonInfo(run_comparisons=[])
-
-        for run in full_comparison.run_comparisons:
-            stable_run = RunComparisonInfo(
-                conbench_api_url=run.conbench_api_url,
-                contender_info=run.contender_info,
-                baseline_run_type=run.baseline_run_type,
-                compare_results=[],
-                benchmark_results=run.benchmark_results,
-            )
-            unstable_run = RunComparisonInfo(
-                conbench_api_url=run.conbench_api_url,
-                contender_info=run.contender_info,
-                baseline_run_type=run.baseline_run_type,
-                compare_results=[],
-                benchmark_results=run.benchmark_results,
-            )
-            if run.compare_results:
-                for result in run.compare_results:
-                    if self._is_known_unstable(result):
-                        unstable_run.compare_results.append(result)
-                    else:
-                        stable_run.compare_results.append(result)
-
-            stable_comparison.run_comparisons.append(stable_run)
-            unstable_comparison.run_comparisons.append(unstable_run)
-
-        return stable_comparison, unstable_comparison
-
-    def github_check_status(self, full_comparison: FullComparisonInfo) -> CheckStatus:
-        if self.reason == "pull-request":
-            # For PR requests, the check status/title should be based on all possible
-            # results since they might be filtered by language.
-            return super().github_check_status(full_comparison)
-
-        stable_comparison, _ = self._separate_known_unstable_benchmarks(full_comparison)
-        return super().github_check_status(stable_comparison)
-
-    def github_check_title(self, full_comparison: FullComparisonInfo) -> str:
-        if self.reason == "pull-request":
-            # For PR requests, the check status/title should be based on all possible
-            # results since they might be filtered by language.
-            return super().github_check_title(full_comparison)
-
-        stable_comparison, _ = self._separate_known_unstable_benchmarks(full_comparison)
-        return super().github_check_title(stable_comparison)
-
-    def github_check_summary(
-        self, full_comparison: FullComparisonInfo, build_url: Optional[str]
-    ) -> str:
-        if self.reason == "pull-request":
-            # For PR requests, the summary should be based on all possible results since
-            # they might be filtered by language.
-            summary = super().github_check_summary(full_comparison, build_url)
-            if len(summary) > 65535:
-                summary = summary[:65532] + "..."
-            return summary
-
-        (
-            stable_comparison,
-            unstable_comparison,
-        ) = self._separate_known_unstable_benchmarks(full_comparison)
-
-        summary = super().github_check_summary(stable_comparison, build_url) + "\n\n"
-
-        if unstable_comparison.results_with_errors:
-            summary += self.clean(
-                """
-                ## Unstable benchmarks with errors
-
-                These are errors that were caught while running the known-unstable
-                benchmarks. You can click each link to go to the Conbench entry for that
-                benchmark, which might have more information about what the error was.
-                """
-            )
-            summary += _list_results(unstable_comparison.results_with_errors)
-
-        if unstable_comparison.results_with_z_regressions:
-            summary += self.clean(
-                """
-                ## Unstable benchmarks with performance regressions
-
-                The following benchmark results indicate a possible performance
-                regression, but are known to sometimes produce false positives when
-                applying the lookback z-score analysis.
-                """
-            )
-            summary += _list_results(unstable_comparison.results_with_z_regressions)
-
-        if len(summary) > 65535:
-            summary = summary[:65532] + "..."
-
-        return summary
-
-    def github_pr_comment(
-        self, full_comparison: FullComparisonInfo, check_link: str
-    ) -> str:
-        if self.reason == "pull-request":
-            # For PR requests, the comment should be based on all possible results since
-            # they might be filtered by language.
-            return super().github_pr_comment(full_comparison, check_link)
-
-        (
-            stable_comparison,
-            unstable_comparison,
-        ) = self._separate_known_unstable_benchmarks(full_comparison)
-
-        comment = super().github_pr_comment(stable_comparison, check_link)
-
-        if (
-            unstable_comparison.results_with_errors
-            or unstable_comparison.results_with_z_regressions
-        ):
-            number = len(unstable_comparison.results_with_errors) + len(
-                unstable_comparison.results_with_z_regressions
-            )
-            ss = "s" if number != 1 else ""
-            comment += " "
-            comment += self.clean(
-                f"""
-                It also includes information about {number} possible false positive{ss}
-                for unstable benchmarks that are known to sometimes produce them.
-                """
-            )
-            # Don't get too excited about no regressions
-            comment.replace(". 🎉", " among the stable benchmarks.")
-
-        return comment
