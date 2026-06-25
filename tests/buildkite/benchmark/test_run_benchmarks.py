@@ -1,3 +1,6 @@
+import json
+import subprocess
+import sys
 from copy import deepcopy
 from pathlib import Path
 
@@ -7,6 +10,30 @@ from tests.helpers import (filter_with_cpp_only_benchmarks,
                            filter_with_file_only_benchmarks,
                            filter_with_python_only_benchmarks,
                            filter_with_r_only_benchmarks, machine_configs)
+
+
+def test_v2_requirements_do_not_install_legacy_benchadapt_stack():
+    for path in [Path("requirements.txt"), Path("adapters/requirements.txt")]:
+        assert "benchadapt" not in path.read_text()
+
+
+def test_mock_adapter_writes_v2_payload_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("CONBENCH_RESULTS_DIR", str(tmp_path))
+
+    subprocess.run(
+        [sys.executable, "mock-adapter.py"],
+        cwd="adapters",
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    payloads = list(tmp_path.glob("*.json"))
+    assert len(payloads) == 1
+    payload = json.loads(payloads[0].read_text())
+    assert payload["run_id"] == "ezf69672dc3741259aac97650414a18c"
+    assert payload["stats"]["data"] == [1.1, 2.2, 3.3]
+    assert payload["github"]["repository"] == "git@github.com:conchair/conchair"
 
 expected_setup_commands = [
     ("git clone https://github.com/wesm/benchmarks.git", ".", True),
@@ -355,5 +382,5 @@ def test_run_adapter_benchmarks():
     run.run_all_benchmark_groups()
     assert (
         run.executor.executed_commands
-        == expected_setup_commands + expected_run_commands
+        == expected_setup_commands + expected_run_commands + expected_submit_command
     )

@@ -96,6 +96,7 @@ repos_with_benchmark_groups = [
         "setup_commands": ["pip install -r requirements.txt"],
         "path_to_benchmark_groups_list_json": "arrow-benchmarks-ci/adapters/benchmarks.json",
         "url_for_benchmark_groups_list_json": "https://raw.githubusercontent.com/wesm/arrow-benchmarks-ci/v2-conbench-ci-report/adapters/benchmarks.json",
+        "submit_results": True,
         "setup_commands_for_lang_benchmarks": {  # These commands need to be defined as functions in buildkite/benchmark/utils.sh
             "C++": [],
             "Python": ["create_data_dir"],
@@ -445,7 +446,7 @@ class ArrowbenchBenchmarkGroupsRunner(BenchmarkGroupsRunner):
 
 class AdapterBenchmarkGroupsRunner(ConbenchBenchmarkGroupsRunner):
     """
-    Runner class for benchadapt adapters
+    Runner class for local adapter scripts
 
     Presently an alias, as relevant differences are all handled via the
     command.

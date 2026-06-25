@@ -1,9 +1,10 @@
 import json
 import logging
 import os
+import platform
 import subprocess
-import sys
 
+import psutil
 import requests
 
 arrow_bci_url = os.getenv("ARROW_BCI_URL")
@@ -26,10 +27,14 @@ def context():
 
 
 def machine_info():
-    sys.path.append("conbench")
-    from benchadapt._machine_info import machine_info
-
-    return machine_info(os.getenv("MACHINE"))
+    return {
+        "name": os.getenv("MACHINE") or platform.node(),
+        "architecture": platform.machine(),
+        "cpu_count": os.cpu_count(),
+        "memory_bytes": psutil.virtual_memory().total,
+        "os_name": platform.system(),
+        "os_version": platform.release(),
+    }
 
 
 def conda_packages():

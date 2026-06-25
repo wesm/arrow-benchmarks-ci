@@ -1,8 +1,7 @@
 import json
-from typing import Any, Dict, List
-
-from benchadapt import BenchmarkResult
-from benchadapt.adapters import BenchmarkAdapter
+import os
+import uuid
+from pathlib import Path
 
 RESULTS_DICT = {
     "run_name": "very-real-benchmark",
@@ -30,25 +29,19 @@ RESULTS_DICT = {
 }
 
 
-class MockAdapter(BenchmarkAdapter):
-    def __init__(
-        self,
-        result_fields_override: Dict[str, Any] = None,
-        result_fields_append: Dict[str, Any] = None,
-    ) -> None:
-        super().__init__(
-            command=["echo", "hello"],
-            result_fields_override=result_fields_override,
-            result_fields_append=result_fields_append,
-        )
-
-    def _transform_results(self) -> List[BenchmarkResult]:
-        return [BenchmarkResult(**RESULTS_DICT)]
+def write_result_payload(payload):
+    results_dir = Path(os.environ.get("CONBENCH_RESULTS_DIR", "bench-results"))
+    results_dir.mkdir(parents=True, exist_ok=True)
+    path = results_dir / f"result-{uuid.uuid4().hex}.json"
+    tmp_path = path.with_name(path.name + ".tmp")
+    tmp_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    tmp_path.replace(path)
+    return path
 
 
 if __name__ == "__main__":
-    adapter = MockAdapter()
-    adapter.transform_results()
-
-    results_dicts = [res.to_publishable_dict() for res in adapter.results]
-    print(json.dumps(results_dicts, indent=2))
+    output_path = write_result_payload(RESULTS_DICT)
+    print(f"Wrote Conbench result payload: {output_path}")

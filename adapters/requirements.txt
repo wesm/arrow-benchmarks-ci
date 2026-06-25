@@ -1,1 +1,0 @@
-benchadapt@git+https://github.com/conbench/conbench.git@44e81d1#subdirectory=benchadapt/python
