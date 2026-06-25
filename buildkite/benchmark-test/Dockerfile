@@ -60,7 +60,7 @@ RUN apt-get update -y -q && \
 
 # Install JavaScript dependencies
 RUN apt-get update -y -q && \
-    wget -q -O - https://deb.nodesource.com/setup_14.x | bash - && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y nodejs && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists* && \
@@ -71,12 +71,20 @@ RUN apt-get update -y -q && \
     apt-get install -y -q --no-install-recommends openjdk-8-jdk maven && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists*
-RUN update-java-alternatives -s java-1.8.0-openjdk-amd64
+RUN case "$(uname -m)" in \
+        aarch64) java_alternative=java-1.8.0-openjdk-arm64 ;; \
+        *) java_alternative=java-1.8.0-openjdk-amd64 ;; \
+    esac && \
+    update-java-alternatives -s "$java_alternative"
 
 # Since this docker image is used for testing benchmark builds that are run on bare metal in conda env,
 # install Conda so all benchmark build scripts are run the same way in the docker container
-RUN curl -LO https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-RUN bash Miniconda3-latest-Linux-x86_64.sh -b
+RUN case "$(uname -m)" in \
+        aarch64) conda_installer=Miniconda3-latest-Linux-aarch64.sh ;; \
+        *) conda_installer=Miniconda3-latest-Linux-x86_64.sh ;; \
+    esac && \
+    curl -LO "https://repo.anaconda.com/miniconda/$conda_installer" && \
+    bash "$conda_installer" -b
 
 # Copy files necessary for running bencmarks
 WORKDIR /build

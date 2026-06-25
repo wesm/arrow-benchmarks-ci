@@ -59,7 +59,7 @@ rm -rf /var/lib/apt/lists*
 
 echo "-------Installing JavaScript dependencies"
 apt-get update -y -q && \
-wget -q -O - https://deb.nodesource.com/setup_14.x | bash - && \
+curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
 apt-get install -y nodejs && \
 apt-get clean && \
 rm -rf /var/lib/apt/lists* && \

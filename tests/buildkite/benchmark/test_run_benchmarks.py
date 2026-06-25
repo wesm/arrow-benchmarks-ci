@@ -18,6 +18,34 @@ def test_v2_requirements_do_not_install_legacy_benchadapt_stack():
         assert "benchadapt" not in path.read_text()
 
 
+def test_benchmark_machine_setup_uses_supported_nodesource_release():
+    paths = [
+        Path("buildkite/benchmark-test/Dockerfile"),
+        Path("scripts/setup-benchmark-machine-ubuntu-20.04-for-apache-arrow-benchmarks.sh"),
+    ]
+
+    for path in paths:
+        text = path.read_text()
+        assert "setup_14.x" not in text
+        assert "setup_22.x" in text
+
+
+def test_benchmark_machine_dockerfile_selects_java_for_host_architecture():
+    dockerfile = Path("buildkite/benchmark-test/Dockerfile").read_text()
+
+    assert "uname -m" in dockerfile
+    assert "java-1.8.0-openjdk-arm64" in dockerfile
+    assert "java-1.8.0-openjdk-amd64" in dockerfile
+
+
+def test_benchmark_machine_dockerfile_selects_miniconda_for_host_architecture():
+    dockerfile = Path("buildkite/benchmark-test/Dockerfile").read_text()
+
+    assert "Miniconda3-latest-Linux-aarch64.sh" in dockerfile
+    assert "Miniconda3-latest-Linux-x86_64.sh" in dockerfile
+    assert "bash \"$conda_installer\" -b" in dockerfile
+
+
 def test_mock_adapter_writes_v2_payload_file(tmp_path, monkeypatch):
     monkeypatch.setenv("CONBENCH_RESULTS_DIR", str(tmp_path))
     monkeypatch.setenv("RUN_ID", "buildkite-run-1")

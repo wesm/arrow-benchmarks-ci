@@ -99,7 +99,7 @@ javac 1.8.0_292
 $ mvn -version
 Apache Maven 3.6.3
 $ node --version
-v14.18.2
+v22.0.0
 $ yarn --version
 1.22.17
 
