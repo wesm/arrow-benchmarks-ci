@@ -19,6 +19,36 @@ def test_v2_requirements_do_not_install_legacy_benchadapt_stack():
         assert "benchadapt" not in path.read_text()
 
 
+def test_schedule_publish_env_example_names_v2_conbench_secrets():
+    text = Path(
+        "terraform/buildkite_secrets/new-arrow-bci-schedule-and-publish/env.example"
+    ).read_text()
+
+    for name in [
+        "CONBENCH_TOKEN",
+        "CONBENCH_CLI",
+        "CONBENCH_CLI_DOWNLOAD_URL",
+        "CONBENCH_CLI_INSTALL_COMMAND",
+        "CONBENCH_CI_GITHUB_APP_ID",
+        "CONBENCH_CI_GITHUB_APP_PRIVATE_KEY",
+    ]:
+        assert f"export {name}=" in text
+
+
+def test_prod_compose_forwards_v2_conbench_report_environment():
+    text = Path("envs/prod/docker-compose.yml").read_text()
+
+    for name in [
+        "CONBENCH_TOKEN",
+        "CONBENCH_CLI",
+        "CONBENCH_CLI_DOWNLOAD_URL",
+        "CONBENCH_CLI_INSTALL_COMMAND",
+        "CONBENCH_CI_GITHUB_APP_ID",
+        "CONBENCH_CI_GITHUB_APP_PRIVATE_KEY",
+    ]:
+        assert f"{name}: ${{{name}" in text
+
+
 def test_benchmark_machine_setup_uses_supported_nodesource_release():
     paths = [
         Path("buildkite/benchmark-test/Dockerfile"),

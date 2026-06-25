@@ -1,5 +1,7 @@
 import json
 import subprocess
+import sys
+from pathlib import Path
 from typing import Optional
 
 import sqlalchemy as s
@@ -7,6 +9,7 @@ import sqlalchemy as s
 from buildkite.schedule_and_publish.get_commits import get_commits
 from buildkite.schedule_and_publish.run_benchalerts import run_benchalerts
 from config import Config
+from models.benchalerts_run import ensure_conbench_cli
 from models.benchmarkable import Benchmarkable
 from models.run import Run
 from tests.helpers import (machine_configs,
@@ -21,6 +24,9 @@ def fake_conbench_ci_report(monkeypatch, status="failure"):
     calls = []
     monkeypatch.setattr(
         Config, "CONBENCH_URL", "http://mocked-integrations:9999/conbench"
+    )
+    monkeypatch.setattr(
+        "models.benchalerts_run.ensure_conbench_cli", lambda: "conbench-v2"
     )
 
     def run(cmd, capture_output, text, check):
@@ -80,6 +86,27 @@ def assert_last_pr_comment_was_pending():
 
 def assert_no_pr_comment_was_posted():
     assert last_pr_comment_body_posted() is None
+
+
+def test_ensure_conbench_cli_installs_with_configured_command(tmp_path, monkeypatch):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    install_script = tmp_path / "install-cli.py"
+    install_script.write_text(
+        "from pathlib import Path\n"
+        f"cli = Path({str(fake_bin / 'conbench-v2')!r})\n"
+        "cli.write_text('#!/bin/sh\\nexit 0\\n')\n"
+        "cli.chmod(0o700)\n"
+    )
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setenv("CONBENCH_CLI", "conbench-v2")
+    monkeypatch.setenv("CONBENCH_CLI_INSTALL_DIR", str(fake_bin))
+    monkeypatch.setenv(
+        "CONBENCH_CLI_INSTALL_COMMAND",
+        f"{sys.executable} {install_script}",
+    )
+
+    assert ensure_conbench_cli() == "conbench-v2"
 
 
 def test_run_benchalerts_on_pr_request(client, monkeypatch):

@@ -1,9 +1,12 @@
 import json
 import os
+import shutil
 import subprocess
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, Union
 from urllib.parse import urlparse
+from urllib.request import urlopen
 
 import sqlalchemy as s
 from sqlalchemy.dialects import postgresql
@@ -22,6 +25,69 @@ def conbench_repository_url(repo: str) -> str:
     if parsed.scheme:
         return repo.rstrip("/")
     return f"https://github.com/{repo.strip('/')}"
+
+
+def ensure_conbench_cli() -> str:
+    cli = os.getenv("CONBENCH_CLI", "conbench-v2")
+    if shutil.which(cli):
+        return cli
+
+    install_dir = Path(
+        os.getenv("CONBENCH_CLI_INSTALL_DIR", str(Path.home() / ".local" / "bin"))
+    )
+    download_url = os.getenv("CONBENCH_CLI_DOWNLOAD_URL")
+    if download_url:
+        target = conbench_cli_target(cli, install_dir)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with urlopen(download_url, timeout=60) as response:
+            target.write_bytes(response.read())
+        target.chmod(0o700)
+        prepend_path(target.parent)
+        if shutil.which(cli):
+            return cli
+        return str(target)
+
+    install_command = os.getenv("CONBENCH_CLI_INSTALL_COMMAND")
+    if install_command:
+        install_dir.mkdir(parents=True, exist_ok=True)
+        prepend_path(install_dir)
+        result = subprocess.run(
+            install_command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip()
+            raise RuntimeError(
+                "CONBENCH_CLI_INSTALL_COMMAND failed"
+                + (f": {detail}" if detail else "")
+            )
+        if shutil.which(cli):
+            return cli
+
+    raise RuntimeError(
+        "Conbench CLI "
+        f"{cli!r} was not found; set CONBENCH_CLI to an executable, "
+        "CONBENCH_CLI_DOWNLOAD_URL to a raw binary URL, or "
+        "CONBENCH_CLI_INSTALL_COMMAND to an install command"
+    )
+
+
+def conbench_cli_target(cli: str, install_dir: Path) -> Path:
+    path = Path(cli)
+    if path.parent != Path("."):
+        return path
+    return install_dir / cli
+
+
+def prepend_path(directory: Path) -> None:
+    current = os.getenv("PATH", "")
+    parts = [p for p in current.split(os.pathsep) if p]
+    directory_text = str(directory)
+    if directory_text not in parts:
+        os.environ["PATH"] = os.pathsep.join([directory_text, *parts])
 
 
 class BenchalertsRun(Base, BaseMixin):
@@ -131,7 +197,7 @@ class BenchalertsRun(Base, BaseMixin):
             raise RuntimeError("CONBENCH_URL is required to publish Conbench reports")
 
         cmd = [
-            os.getenv("CONBENCH_CLI", "conbench-v2"),
+            ensure_conbench_cli(),
             "ci",
             "report",
             "--server",
