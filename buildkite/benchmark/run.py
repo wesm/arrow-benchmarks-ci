@@ -424,6 +424,7 @@ class ArrowbenchBenchmarkGroupsRunner(BenchmarkGroupsRunner):
             n_iter = 3L,
             drop_caches = TRUE,
             publish = TRUE,
+            run_id = '{os.getenv('RUN_ID')}',
             run_name = '{os.getenv('RUN_NAME')}',
             run_reason = '{os.getenv('RUN_REASON')}'
         )

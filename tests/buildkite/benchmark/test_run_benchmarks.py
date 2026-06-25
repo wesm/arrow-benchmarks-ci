@@ -359,6 +359,7 @@ def test_run_arrowbench_benchmarks(monkeypatch):
         "n_iter = 3L,",
         "drop_caches = TRUE,",
         "publish = TRUE,",
+        f"run_id = '{run_id}',",
         f"run_name = '{run_name}',",
         f"run_reason = '{run_reason}'",
         ")",
