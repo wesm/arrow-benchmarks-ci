@@ -115,7 +115,7 @@ def test_run_benchalerts_on_pr_request(client, monkeypatch):
     cmd = conbench_calls[0]
     assert cmd[:3] == ["conbench-v2", "ci", "report"]
     assert flag_value(cmd, "--server") == Config.CONBENCH_URL
-    assert flag_value(cmd, "--repository") == "apache/arrow"
+    assert flag_value(cmd, "--repository") == "https://github.com/apache/arrow"
     assert flag_value(cmd, "--commit") == test_benchmarkable_id
     assert "--baseline-run-ids" in cmd
     assert "--baseline" not in cmd
@@ -163,7 +163,7 @@ def test_run_benchalerts_on_merged_pull_requests(monkeypatch):
     cmd = conbench_calls[0]
     assert cmd[:3] == ["conbench-v2", "ci", "report"]
     assert flag_value(cmd, "--server") == Config.CONBENCH_URL
-    assert flag_value(cmd, "--repository") == "apache/arrow"
+    assert flag_value(cmd, "--repository") == "https://github.com/apache/arrow"
     assert flag_value(cmd, "--commit") == contender.id
     assert "--baseline-run-ids" in cmd
     assert "--baseline" not in cmd

@@ -3,6 +3,7 @@ import os
 import subprocess
 from datetime import datetime
 from typing import Optional, Union
+from urllib.parse import urlparse
 
 import sqlalchemy as s
 from sqlalchemy.dialects import postgresql
@@ -13,6 +14,14 @@ from db import Base
 from logger import log
 from models.base import BaseMixin
 from utils import generate_uuid
+
+
+def conbench_repository_url(repo: str) -> str:
+    """Return the repository string Conbench payloads and reports share."""
+    parsed = urlparse(repo)
+    if parsed.scheme:
+        return repo.rstrip("/")
+    return f"https://github.com/{repo.strip('/')}"
 
 
 class BenchalertsRun(Base, BaseMixin):
@@ -128,7 +137,7 @@ class BenchalertsRun(Base, BaseMixin):
             "--server",
             Config.CONBENCH_URL,
             "--repository",
-            self.benchmarkable.repo,
+            conbench_repository_url(self.benchmarkable.repo),
             "--commit",
             self.benchmarkable_id,
             "--run-ids",
