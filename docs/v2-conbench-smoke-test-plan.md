@@ -121,14 +121,24 @@ Preferred GitHub App settings:
 Install the GitHub App on the scratch repository with permission to create Check
 Runs and pull request issue comments.
 
-For the first report-only validation, run `conbench ci report` manually in a
-Buildkite command step after a successful submit:
+For the first report-only validation, submit a scratch-shaped adapter payload,
+then run `conbench ci report` manually in the same Buildkite command step. The
+repository and commit passed to `conbench ci report` must match the submitted
+payload metadata; do not point `--repository` at a scratch repo while selecting
+Arrow payload run IDs.
 
 ```bash
+export CONBENCH_PROJECT_REPOSITORY="https://github.com/<owner>/<scratch-repo>"
+export CONBENCH_PROJECT_COMMIT="$SCRATCH_COMMIT"
+export CONBENCH_PROJECT_PR_NUMBER="$SCRATCH_PR_NUMBER"
+export RUN_ID="${RUN_ID:-scratch-github-app-${BUILDKITE_BUILD_ID}}"
+
+scripts/conbench-v2-adapter-smoke.sh
+
 "${CONBENCH_CLI:-conbench-v2}" ci report \
   --server "$CONBENCH_URL" \
-  --repository "https://github.com/<owner>/<scratch-repo>" \
-  --commit "$BENCHMARKABLE" \
+  --repository "$CONBENCH_PROJECT_REPOSITORY" \
+  --commit "$CONBENCH_PROJECT_COMMIT" \
   --run-ids "$RUN_ID" \
   --github-check \
   --github-pr-comment \
