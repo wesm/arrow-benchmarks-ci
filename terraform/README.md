@@ -175,6 +175,13 @@ After infrastructure is created:
    # See https://kubernetes-sigs.github.io/aws-load-balancer-controller/
    ```
 
+## Conbench v2 Evaluator
+
+Use [CONBENCH_V2_EVALUATOR.md](CONBENCH_V2_EVALUATOR.md) for the
+Terraform-managed parallel Conbench v2 evaluator. The evaluator must be created
+through reviewed infrastructure code, not through manual Kubernetes manifests
+or console DNS changes.
+
 ## Cost Estimation
 
 Approximate monthly costs (us-east-1, on-demand pricing):

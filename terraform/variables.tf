@@ -280,6 +280,125 @@ variable "conbench_url" {
   default     = "https://conbench.arrow-dev.org"
 }
 
+variable "conbench_v2_enabled" {
+  description = "Create the parallel Conbench v2 evaluator Kubernetes resources"
+  type        = bool
+  default     = false
+}
+
+variable "conbench_v2_namespace" {
+  description = "Kubernetes namespace for the Conbench v2 evaluator"
+  type        = string
+  default     = "default"
+}
+
+variable "conbench_v2_image" {
+  description = "Immutable Docker image for the Conbench v2 evaluator"
+  type        = string
+  default     = ""
+}
+
+variable "conbench_v2_replicas" {
+  description = "Number of Conbench v2 evaluator replicas"
+  type        = number
+  default     = 1
+}
+
+variable "conbench_v2_addr" {
+  description = "Conbench v2 server listen address inside the container"
+  type        = string
+  default     = ":8080"
+}
+
+variable "conbench_v2_public_url" {
+  description = "Public URL intended for the Conbench v2 evaluator"
+  type        = string
+  default     = "https://conbench-v2.arrow-dev.org"
+}
+
+variable "conbench_v2_dns_name" {
+  description = "Route53 DNS name for the Conbench v2 evaluator"
+  type        = string
+  default     = "conbench-v2.arrow-dev.org"
+}
+
+variable "conbench_v2_expose_load_balancer" {
+  description = "Expose the Conbench v2 evaluator through a public Kubernetes LoadBalancer Service"
+  type        = bool
+  default     = false
+}
+
+variable "conbench_v2_create_dns_record" {
+  description = "Create the public Route53 alias for the Conbench v2 evaluator"
+  type        = bool
+  default     = false
+}
+
+variable "conbench_v2_elb_dns_name" {
+  description = "ELB DNS name for the Conbench v2 evaluator Service; set after the Service exists"
+  type        = string
+  default     = ""
+}
+
+variable "conbench_v2_elb_zone_id" {
+  description = "ELB hosted zone ID for the Conbench v2 evaluator Service"
+  type        = string
+  default     = "Z35SXDOTRQ7X7K"
+}
+
+variable "conbench_v2_db_url" {
+  description = "Postgres connection URL for the Conbench v2 evaluator; use a read-only role for the first pass"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "conbench_v2_api_token" {
+  description = "Optional static operator bearer token for the Conbench v2 evaluator"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "conbench_v2_github_api_token" {
+  description = "Optional GitHub token pool for Conbench v2 commit enrichment"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "conbench_v2_github_timeout" {
+  description = "Optional Go duration for Conbench v2 in-request GitHub enrichment"
+  type        = string
+  default     = ""
+}
+
+variable "conbench_v2_oidc_issuer_url" {
+  description = "Optional OIDC issuer URL for Conbench v2 human login"
+  type        = string
+  default     = ""
+}
+
+variable "conbench_v2_oidc_client_id" {
+  description = "Optional OIDC client ID for Conbench v2 human login"
+  type        = string
+  default     = ""
+}
+
+variable "conbench_v2_oidc_client_secret" {
+  description = "Optional OIDC client secret for Conbench v2 human login"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "conbench_v2_session_secret" {
+  description = "Optional session HMAC secret for Conbench v2 human login; required when OIDC is enabled"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "db_host" {
   description = "Conbench db host"
   type        = string

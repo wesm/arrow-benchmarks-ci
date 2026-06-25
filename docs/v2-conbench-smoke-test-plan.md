@@ -32,6 +32,11 @@ the Buildkite API.
 Do not point this pipeline at the production Conbench deployment or production
 Apache Arrow pull requests during initial validation.
 
+The non-production Conbench endpoint should be created through Terraform using
+the [Conbench v2 evaluator runbook](../terraform/CONBENCH_V2_EVALUATOR.md).
+Do not create ad hoc Kubernetes Services, Route53 records, or host-local
+processes for the smoke.
+
 ## Adapter Preflight
 
 Before building Arrow or running the benchmark repositories, validate the

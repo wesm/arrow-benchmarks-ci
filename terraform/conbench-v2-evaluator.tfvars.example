@@ -1,0 +1,17 @@
+# Copy to conbench-v2-evaluator.tfvars for the private evaluator plan.
+# Do not commit the copy; it contains secrets.
+
+aws_profile = "arrow-conbench"
+
+conbench_v2_enabled = true
+conbench_v2_image   = "855673865593.dkr.ecr.us-east-1.amazonaws.com/conbench:<immutable-v2-tag>"
+
+# First pass should use a read-only database URL and should not publish DNS.
+conbench_v2_db_url = "postgres://conbench_readonly:<secret>@conbench-prod-db.csfk0a0s85z8.us-east-1.rds.amazonaws.com:5432/conbench_prod?sslmode=require&default_transaction_read_only=on&statement_timeout=30s&lock_timeout=2s&idle_in_transaction_session_timeout=30s"
+
+conbench_v2_expose_load_balancer = false
+conbench_v2_create_dns_record    = false
+
+# Set only after the LoadBalancer Service exists and has a hostname.
+conbench_v2_elb_dns_name = ""
+conbench_v2_elb_zone_id  = "Z35SXDOTRQ7X7K"

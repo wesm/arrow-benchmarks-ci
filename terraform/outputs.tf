@@ -165,6 +165,31 @@ output "conbench_url" {
   value       = "https://conbench.arrow-dev.org"
 }
 
+output "conbench_v2_url" {
+  description = "Conbench v2 evaluator URL"
+  value       = var.conbench_v2_enabled ? var.conbench_v2_public_url : "Not created"
+}
+
+output "conbench_v2_deployment_name" {
+  description = "Conbench v2 evaluator Deployment name"
+  value       = try(kubernetes_deployment.conbench_v2[0].metadata[0].name, "Not created")
+}
+
+output "conbench_v2_service_name" {
+  description = "Conbench v2 evaluator Service name"
+  value       = try(kubernetes_service.conbench_v2[0].metadata[0].name, "Not created")
+}
+
+output "conbench_v2_service_hostname" {
+  description = "Conbench v2 evaluator LoadBalancer hostname"
+  value       = var.conbench_v2_enabled && var.conbench_v2_expose_load_balancer ? "Check with: kubectl -n ${var.conbench_v2_namespace} get svc conbench-v2-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'" : "Not exposed"
+}
+
+output "conbench_v2_port_forward_command" {
+  description = "Private smoke command for the Conbench v2 evaluator"
+  value       = var.conbench_v2_enabled ? "kubectl -n ${var.conbench_v2_namespace} port-forward service/conbench-v2-service 18080:80" : "Not created"
+}
+
 # Route53 and Domain Outputs - Custom Domain (if configured)
 output "route53_zone_id" {
   description = "Route53 hosted zone ID for custom domain"

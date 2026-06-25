@@ -40,6 +40,11 @@ db_name     = "conbench"
 db_username = "conbench_admin"
 db_password = "CHANGE_ME_STRONG_PASSWORD_HERE" # At least 8 characters
 
+# Conbench v2 evaluator
+# Use conbench-v2-evaluator.tfvars.example for the parallel evaluator plan.
+# Do not copy broad baseline infrastructure examples into a production plan just
+# to add the v2 evaluator.
+
 # Backup and HA
 db_backup_retention_period = 7
 db_multi_az               = false # Set to true for production high availability
