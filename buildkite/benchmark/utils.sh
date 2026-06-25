@@ -135,6 +135,44 @@ create_data_dir() {
   mkdir -p "${BENCHMARKS_DATA_DIR}/temp"
 }
 
+ensure_conbench_cli() {
+  export CONBENCH_CLI="${CONBENCH_CLI:-conbench-v2}"
+
+  if command -v "$CONBENCH_CLI" >/dev/null 2>&1; then
+    echo "Using Conbench CLI: $CONBENCH_CLI"
+    return 0
+  fi
+
+  if [ -n "${CONBENCH_CLI_DOWNLOAD_URL:-}" ]; then
+    local cli_target
+    case "$CONBENCH_CLI" in
+      */*)
+        cli_target="$CONBENCH_CLI"
+        ;;
+      *)
+        local cli_dir="${CONBENCH_CLI_INSTALL_DIR:-$HOME/.local/bin}"
+        mkdir -p "$cli_dir"
+        export PATH="$cli_dir:$PATH"
+        cli_target="$cli_dir/$CONBENCH_CLI"
+        ;;
+    esac
+    echo "Downloading Conbench CLI from CONBENCH_CLI_DOWNLOAD_URL"
+    curl -fsSL "$CONBENCH_CLI_DOWNLOAD_URL" -o "$cli_target"
+    chmod +x "$cli_target"
+  elif [ -n "${CONBENCH_CLI_INSTALL_COMMAND:-}" ]; then
+    echo "Installing Conbench CLI with CONBENCH_CLI_INSTALL_COMMAND"
+    eval "$CONBENCH_CLI_INSTALL_COMMAND"
+  fi
+
+  if command -v "$CONBENCH_CLI" >/dev/null 2>&1; then
+    echo "Using Conbench CLI: $CONBENCH_CLI"
+    return 0
+  fi
+
+  echo "Conbench CLI '$CONBENCH_CLI' was not found. Set CONBENCH_CLI to an executable, CONBENCH_CLI_DOWNLOAD_URL to a raw binary URL, or CONBENCH_CLI_INSTALL_COMMAND to an install command." >&2
+  return 1
+}
+
 test_pyarrow_is_built() {
   echo "------------>Testing pyarrow is built"
   python -c "import pyarrow; print(pyarrow.__version__)"
@@ -179,6 +217,7 @@ create_conda_env_and_run_benchmarks() {
   # pypi doesn't have wheels for macos 13 and source build fails
   conda install -y --solver libmamba -c conda-forge 'psycopg2-binary'
   pip install -r requirements.txt
+  ensure_conbench_cli
   python -m buildkite.benchmark.run_benchmark_groups
 }
 

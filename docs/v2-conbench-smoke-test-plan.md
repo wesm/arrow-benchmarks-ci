@@ -86,7 +86,9 @@ secrets:
 | --- | --- | --- |
 | `CONBENCH_URL` | no | Non-production Conbench v2 endpoint, such as the prod-clone deployment. |
 | `CONBENCH_TOKEN` | yes | Reporter API token minted by `conbench admin tokens create`. |
-| `CONBENCH_CLI` | no | CLI executable name or path. Use `conbench-v2` unless the agent installs a different name. |
+| `CONBENCH_CLI` | no | CLI executable name or path. Defaults to `conbench-v2`. |
+| `CONBENCH_CLI_DOWNLOAD_URL` | no | Raw executable URL for the benchmark job to download when `CONBENCH_CLI` is not already on `PATH`. |
+| `CONBENCH_CLI_INSTALL_COMMAND` | no | Shell command that installs `CONBENCH_CLI` when no download URL is used. Prefer a pinned commit or immutable artifact. |
 | `CONBENCH_SUBMIT_JOBS` | no | Result submission parallelism. Defaults to `64` for one-file-per-result workloads; lower it if the endpoint or database shows pressure. |
 | `BENCHMARKABLE_TYPE` | no | Use `arrow-commit` for the first smoke. |
 | `BENCHMARKABLE` | no | Apache Arrow commit SHA to benchmark. Prefer a recent non-production test SHA. |

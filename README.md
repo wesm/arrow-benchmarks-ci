@@ -37,7 +37,9 @@ Please use this doc to add a new benchmark machine: [How to Add New Benchmark Ma
 #### How can I test benchmark builds that run on ursa-i9-9960x and ursa-thinkcentre-m75q locally
 ```bash
 # Set env vars if benchmark results should be posted to v2 Conbench.
-# The v2 CLI must be installed on PATH as conbench-v2, or set CONBENCH_CLI.
+# The benchmark entrypoint checks CONBENCH_CLI before running benchmark groups.
+# Put the CLI on PATH, set CONBENCH_CLI_DOWNLOAD_URL to a raw executable URL,
+# or set CONBENCH_CLI_INSTALL_COMMAND to a pinned install command.
 export CONBENCH_TOKEN=<conbench_api_token>
 export CONBENCH_CLI=${CONBENCH_CLI:-conbench-v2}
 

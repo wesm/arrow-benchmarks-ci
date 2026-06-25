@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from copy import deepcopy
@@ -69,6 +70,63 @@ def test_v2_submit_command_retains_jsonl_output():
 
 def test_v2_submit_command_defaults_to_measured_parallelism():
     assert '--jobs "${CONBENCH_SUBMIT_JOBS:-64}"' in CONBENCH_RESULTS_SUBMIT_COMMAND
+
+
+def test_ensure_conbench_cli_accepts_existing_cli(tmp_path):
+    cli = tmp_path / "conbench-v2"
+    cli.write_text("#!/bin/sh\nexit 0\n")
+    cli.chmod(0o700)
+    env = {
+        **os.environ,
+        "CONBENCH_CLI": "conbench-v2",
+        "PATH": f"{tmp_path}:{os.environ['PATH']}",
+    }
+
+    result = subprocess.run(
+        ["bash", "buildkite/benchmark/utils.sh", "ensure_conbench_cli"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 0
+    assert "Using Conbench CLI: conbench-v2" in result.stdout
+
+
+def test_ensure_conbench_cli_runs_install_command(tmp_path):
+    install_dir = tmp_path / "bin"
+    install_command = (
+        f"mkdir -p {install_dir} && "
+        f"printf '#!/bin/sh\\nexit 0\\n' > {install_dir}/conbench-v2 && "
+        f"chmod +x {install_dir}/conbench-v2"
+    )
+    env = {
+        **os.environ,
+        "CONBENCH_CLI": "conbench-v2",
+        "CONBENCH_CLI_INSTALL_COMMAND": install_command,
+        "PATH": f"{install_dir}:{os.environ['PATH']}",
+    }
+
+    result = subprocess.run(
+        ["bash", "buildkite/benchmark/utils.sh", "ensure_conbench_cli"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 0
+    assert "Installing Conbench CLI with CONBENCH_CLI_INSTALL_COMMAND" in result.stdout
+    assert "Using Conbench CLI: conbench-v2" in result.stdout
+
+
+def test_benchmark_entrypoint_bootstraps_conbench_cli_before_running_python():
+    script = Path("buildkite/benchmark/utils.sh").read_text()
+
+    assert script.index("ensure_conbench_cli\n") < script.index(
+        "python -m buildkite.benchmark.run_benchmark_groups"
+    )
 
 
 expected_setup_commands = [
