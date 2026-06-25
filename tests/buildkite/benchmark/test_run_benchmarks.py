@@ -5,8 +5,9 @@ import sys
 from copy import deepcopy
 from pathlib import Path
 
+from buildkite.benchmark import run as benchmark_run
 from buildkite.benchmark.run import (CONBENCH_RESULTS_SUBMIT_COMMAND, MockRun,
-                                     repos_with_benchmark_groups)
+                                     Run, repos_with_benchmark_groups)
 from tests.helpers import (filter_with_cpp_only_benchmarks,
                            filter_with_file_only_benchmarks,
                            filter_with_python_only_benchmarks,
@@ -214,6 +215,38 @@ def test_local_v2_adapter_smoke_script_submits_payload(tmp_path):
         "--jobs",
         "7",
     ]
+
+
+def test_conbench_metadata_file_does_not_store_legacy_auth(tmp_path, monkeypatch):
+    repo_root = tmp_path / "benchmarks"
+    repo_root.mkdir()
+    monkeypatch.setattr(benchmark_run, "build_dir", str(tmp_path))
+    monkeypatch.setenv("CONBENCH_URL", "https://conbench-v2.example")
+    monkeypatch.setenv("MACHINE", "buildkite-linux")
+
+    runner = Run(
+        {
+            "repo": "https://github.com/wesm/benchmarks.git",
+            "root": "benchmarks",
+            "branch": "v2-conbench-submit",
+            "setup_commands": [],
+            "path_to_benchmark_groups_list_json": "benchmarks.json",
+            "url_for_benchmark_groups_list_json": "https://example.invalid/benchmarks.json",
+            "setup_commands_for_lang_benchmarks": {},
+            "env_vars": {},
+        }
+    )
+
+    runner.setup_conbench_metadata()
+
+    metadata = (repo_root / ".conbench").read_text()
+    assert metadata == (
+        "url: https://conbench-v2.example\n"
+        "host_name: buildkite-linux\n"
+    )
+    assert "email" not in metadata
+    assert "password" not in metadata
+    assert "token" not in metadata
 
 
 def test_ensure_conbench_cli_accepts_existing_cli(tmp_path):

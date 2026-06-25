@@ -507,7 +507,7 @@ class Run:
         for command in self.setup_commands:
             self.executor.execute_command(command, self.root)
 
-    def setup_conbench_credentials(self):
+    def setup_conbench_metadata(self):
         with open(f"{build_dir}/{self.root}/.conbench", "w") as f:
             f.writelines(
                 [
@@ -672,7 +672,7 @@ class Run:
     def run_all_benchmark_groups(self):
         self.capture_context()
         self.setup_benchmarks_repo()
-        self.setup_conbench_credentials()
+        self.setup_conbench_metadata()
         self.set_env_vars()
         self.set_benchmark_groups()
         self.filter_benchmark_groups()
@@ -741,7 +741,7 @@ class MockRun(Run):
     def set_env_vars(self):
         pass
 
-    def setup_conbench_credentials(self):
+    def setup_conbench_metadata(self):
         pass
 
     def get_benchmark_groups(self):
