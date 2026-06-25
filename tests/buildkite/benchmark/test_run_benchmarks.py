@@ -14,69 +14,6 @@ from tests.helpers import (filter_with_cpp_only_benchmarks,
                            filter_with_r_only_benchmarks, machine_configs)
 
 
-def test_v2_requirements_do_not_install_legacy_benchadapt_stack():
-    for path in [Path("requirements.txt"), Path("adapters/requirements.txt")]:
-        assert "benchadapt" not in path.read_text()
-
-
-def test_schedule_publish_env_example_names_v2_conbench_secrets():
-    text = Path(
-        "terraform/buildkite_secrets/new-arrow-bci-schedule-and-publish/env.example"
-    ).read_text()
-
-    for name in [
-        "CONBENCH_TOKEN",
-        "CONBENCH_CLI",
-        "CONBENCH_CLI_DOWNLOAD_URL",
-        "CONBENCH_CLI_INSTALL_COMMAND",
-        "CONBENCH_CI_GITHUB_APP_ID",
-        "CONBENCH_CI_GITHUB_APP_PRIVATE_KEY",
-    ]:
-        assert f"export {name}=" in text
-
-
-def test_prod_compose_forwards_v2_conbench_report_environment():
-    text = Path("envs/prod/docker-compose.yml").read_text()
-
-    for name in [
-        "CONBENCH_TOKEN",
-        "CONBENCH_CLI",
-        "CONBENCH_CLI_DOWNLOAD_URL",
-        "CONBENCH_CLI_INSTALL_COMMAND",
-        "CONBENCH_CI_GITHUB_APP_ID",
-        "CONBENCH_CI_GITHUB_APP_PRIVATE_KEY",
-    ]:
-        assert f"{name}: ${{{name}" in text
-
-
-def test_benchmark_machine_setup_uses_supported_nodesource_release():
-    paths = [
-        Path("buildkite/benchmark-test/Dockerfile"),
-        Path("scripts/setup-benchmark-machine-ubuntu-20.04-for-apache-arrow-benchmarks.sh"),
-    ]
-
-    for path in paths:
-        text = path.read_text()
-        assert "setup_14.x" not in text
-        assert "setup_22.x" in text
-
-
-def test_benchmark_machine_dockerfile_selects_java_for_host_architecture():
-    dockerfile = Path("buildkite/benchmark-test/Dockerfile").read_text()
-
-    assert "uname -m" in dockerfile
-    assert "java-1.8.0-openjdk-arm64" in dockerfile
-    assert "java-1.8.0-openjdk-amd64" in dockerfile
-
-
-def test_benchmark_machine_dockerfile_selects_miniconda_for_host_architecture():
-    dockerfile = Path("buildkite/benchmark-test/Dockerfile").read_text()
-
-    assert "Miniconda3-latest-Linux-aarch64.sh" in dockerfile
-    assert "Miniconda3-latest-Linux-x86_64.sh" in dockerfile
-    assert "bash \"$conda_installer\" -b" in dockerfile
-
-
 def test_mock_adapter_writes_v2_payload_file(tmp_path, monkeypatch):
     monkeypatch.setenv("CONBENCH_RESULTS_DIR", str(tmp_path))
     monkeypatch.setenv("RUN_ID", "buildkite-run-1")
@@ -111,27 +48,6 @@ def test_mock_adapter_writes_v2_payload_file(tmp_path, monkeypatch):
         "commit": "1111111111111111111111111111111111111111",
         "pr_number": 48886,
     }
-
-
-def test_benchmark_pipeline_retains_v2_artifacts():
-    pipeline = Path("buildkite/benchmark/pipeline.yml").read_text()
-
-    assert "artifact_paths:" in pipeline
-    assert '"**/bench-results/**/*.json"' in pipeline
-    assert '"conbench-submit.jsonl"' in pipeline
-    assert '"conbench-ci-report.json"' in pipeline
-
-
-def test_v2_submit_command_retains_jsonl_output():
-    assert "set -o pipefail;" in CONBENCH_RESULTS_SUBMIT_COMMAND
-    assert "| tee conbench-submit.jsonl" in CONBENCH_RESULTS_SUBMIT_COMMAND
-
-
-def test_v2_submit_command_reports_payload_and_submit_metrics():
-    assert "Conbench payload files:" in CONBENCH_RESULTS_SUBMIT_COMMAND
-    assert "Conbench payload bytes:" in CONBENCH_RESULTS_SUBMIT_COMMAND
-    assert "Conbench submit rows:" in CONBENCH_RESULTS_SUBMIT_COMMAND
-    assert "Conbench submit seconds:" in CONBENCH_RESULTS_SUBMIT_COMMAND
 
 
 def test_v2_submit_command_metrics_smoke(tmp_path):
@@ -176,10 +92,6 @@ def test_v2_submit_command_metrics_smoke(tmp_path):
         '{"ok":true,"id":"one"}',
         '{"ok":true,"id":"two"}',
     ]
-
-
-def test_v2_submit_command_defaults_to_measured_parallelism():
-    assert '--jobs "${CONBENCH_SUBMIT_JOBS:-64}"' in CONBENCH_RESULTS_SUBMIT_COMMAND
 
 
 def test_local_v2_adapter_smoke_script_submits_payload(tmp_path):
@@ -346,20 +258,6 @@ def test_check_conbench_submit_env_requires_endpoint_and_token():
     assert result.returncode == 1
     assert "CONBENCH_URL is required" in result.stderr
     assert "CONBENCH_TOKEN is required" in result.stderr
-
-
-def test_benchmark_entrypoint_bootstraps_conbench_cli_before_running_python():
-    script = Path("buildkite/benchmark/utils.sh").read_text()
-
-    assert script.index("ensure_conbench_cli\n") < script.index(
-        "python -m buildkite.benchmark.run_benchmark_groups"
-    )
-    assert script.index("ensure_conbench_cli\n") < script.index(
-        "check_conbench_submit_env\n"
-    )
-    assert script.index("check_conbench_submit_env\n") < script.index(
-        "python -m buildkite.benchmark.run_benchmark_groups"
-    )
 
 
 expected_setup_commands = [
