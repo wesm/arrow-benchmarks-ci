@@ -151,6 +151,61 @@ def test_v2_submit_command_defaults_to_measured_parallelism():
     assert '--jobs "${CONBENCH_SUBMIT_JOBS:-64}"' in CONBENCH_RESULTS_SUBMIT_COMMAND
 
 
+def test_local_v2_adapter_smoke_script_submits_payload(tmp_path):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    args_file = tmp_path / "conbench-args.txt"
+    conbench = fake_bin / "conbench-v2"
+    conbench.write_text(
+        "#!/bin/sh\n"
+        "printf '%s\\n' \"$@\" > \"$FAKE_CONBENCH_ARGS\"\n"
+        "printf '%s\\n' '{\"ok\":true,\"id\":\"adapter-smoke\"}'\n"
+    )
+    conbench.chmod(0o700)
+
+    results_dir = tmp_path / "bench-results"
+    submit_out = tmp_path / "conbench-submit.jsonl"
+    env = {
+        **os.environ,
+        "CONBENCH_CLI": "conbench-v2",
+        "CONBENCH_URL": "http://conbench.example",
+        "CONBENCH_TOKEN": "dummy-token",
+        "CONBENCH_RESULTS_DIR": str(results_dir),
+        "CONBENCH_SUBMIT_OUT": str(submit_out),
+        "CONBENCH_SUBMIT_JOBS": "7",
+        "FAKE_CONBENCH_ARGS": str(args_file),
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "RUN_ID": "adapter-smoke-run",
+        "RUN_NAME": "adapter smoke run",
+        "RUN_REASON": "manual-smoke",
+        "CONBENCH_PROJECT_COMMIT": "1111111111111111111111111111111111111111",
+    }
+
+    result = subprocess.run(
+        ["bash", "scripts/conbench-v2-adapter-smoke.sh"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Conbench v2 adapter smoke payloads:" in result.stdout
+    payloads = list(results_dir.glob("*.json"))
+    assert len(payloads) == 1
+    assert json.loads(payloads[0].read_text())["run_id"] == "adapter-smoke-run"
+    assert submit_out.read_text().splitlines() == ['{"ok":true,"id":"adapter-smoke"}']
+    assert args_file.read_text().splitlines() == [
+        "results",
+        "submit",
+        f"{results_dir}/*.json",
+        "--server",
+        "http://conbench.example",
+        "--jobs",
+        "7",
+    ]
+
+
 def test_ensure_conbench_cli_accepts_existing_cli(tmp_path):
     cli = tmp_path / "conbench-v2"
     cli.write_text("#!/bin/sh\nexit 0\n")

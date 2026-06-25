@@ -36,25 +36,12 @@ Apache Arrow pull requests during initial validation.
 
 Before building Arrow or running the benchmark repositories, validate the
 Buildkite secret, network, artifact, and v2 submit path with the mock adapter in
-this repository. Use a one-off Buildkite command step on the same agent queue:
+this repository. Use the repo-local preflight script on the same agent queue:
 
 ```bash
 set -euo pipefail
 
-export CONBENCH_RESULTS_DIR="$PWD/bench-results/${BUILDKITE_BUILD_ID:-local}"
-export RUN_ID="${BUILDKITE_BUILD_ID:-local-v2-smoke}"
-export RUN_NAME="conbench v2 adapter smoke: ${BUILDKITE_BUILD_ID:-local}"
-export RUN_REASON="manual-smoke"
-export CONBENCH_MACHINE_INFO_NAME="${MACHINE:-conbench-v2-smoke-linux}"
-export CONBENCH_PROJECT_REPOSITORY="https://github.com/apache/arrow"
-export CONBENCH_PROJECT_COMMIT="${BUILDKITE_COMMIT:-1111111111111111111111111111111111111111}"
-
-python adapters/mock-adapter.py
-
-"${CONBENCH_CLI:-conbench-v2}" results submit \
-  "$CONBENCH_RESULTS_DIR/*.json" \
-  --server "$CONBENCH_URL" \
-  --jobs "${CONBENCH_SUBMIT_JOBS:-4}" | tee conbench-submit.jsonl
+scripts/conbench-v2-adapter-smoke.sh
 ```
 
 The adapter writes a normal Conbench v2 payload using the same run, machine,
