@@ -155,6 +155,14 @@ def test_local_v2_adapter_smoke_script_submits_payload(tmp_path):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     args_file = tmp_path / "conbench-args.txt"
+    python_marker = tmp_path / "python-wrapper-used"
+    python_wrapper = fake_bin / "python-wrapper"
+    python_wrapper.write_text(
+        "#!/bin/sh\n"
+        f"touch {python_marker}\n"
+        f"exec {sys.executable} \"$@\"\n"
+    )
+    python_wrapper.chmod(0o700)
     conbench = fake_bin / "conbench-v2"
     conbench.write_text(
         "#!/bin/sh\n"
@@ -175,6 +183,7 @@ def test_local_v2_adapter_smoke_script_submits_payload(tmp_path):
         "CONBENCH_SUBMIT_JOBS": "7",
         "FAKE_CONBENCH_ARGS": str(args_file),
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        "PYTHON": str(python_wrapper),
         "RUN_ID": "adapter-smoke-run",
         "RUN_NAME": "adapter smoke run",
         "RUN_REASON": "manual-smoke",
@@ -194,6 +203,7 @@ def test_local_v2_adapter_smoke_script_submits_payload(tmp_path):
     payloads = list(results_dir.glob("*.json"))
     assert len(payloads) == 1
     assert json.loads(payloads[0].read_text())["run_id"] == "adapter-smoke-run"
+    assert python_marker.exists()
     assert submit_out.read_text().splitlines() == ['{"ok":true,"id":"adapter-smoke"}']
     assert args_file.read_text().splitlines() == [
         "results",

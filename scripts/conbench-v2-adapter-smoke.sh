@@ -23,7 +23,7 @@ mkdir -p "$CONBENCH_RESULTS_DIR"
 ensure_conbench_cli
 check_conbench_submit_env
 
-python adapters/mock-adapter.py
+"${PYTHON:-python3}" adapters/mock-adapter.py
 
 payload_count=$(find "$CONBENCH_RESULTS_DIR" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')
 echo "Conbench v2 adapter smoke payloads: $payload_count"
