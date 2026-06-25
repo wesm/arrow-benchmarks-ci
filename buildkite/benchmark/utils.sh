@@ -173,6 +173,21 @@ ensure_conbench_cli() {
   return 1
 }
 
+check_conbench_submit_env() {
+  local missing=0
+
+  if [ -z "${CONBENCH_URL:-}" ]; then
+    echo "CONBENCH_URL is required for Conbench v2 result submission." >&2
+    missing=1
+  fi
+  if [ -z "${CONBENCH_TOKEN:-}" ]; then
+    echo "CONBENCH_TOKEN is required for Conbench v2 result submission." >&2
+    missing=1
+  fi
+
+  return "$missing"
+}
+
 test_pyarrow_is_built() {
   echo "------------>Testing pyarrow is built"
   python -c "import pyarrow; print(pyarrow.__version__)"
@@ -218,6 +233,7 @@ create_conda_env_and_run_benchmarks() {
   conda install -y --solver libmamba -c conda-forge 'psycopg2-binary'
   pip install -r requirements.txt
   ensure_conbench_cli
+  check_conbench_submit_env
   python -m buildkite.benchmark.run_benchmark_groups
 }
 

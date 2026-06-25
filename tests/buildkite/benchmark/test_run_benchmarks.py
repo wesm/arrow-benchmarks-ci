@@ -121,10 +121,36 @@ def test_ensure_conbench_cli_runs_install_command(tmp_path):
     assert "Using Conbench CLI: conbench-v2" in result.stdout
 
 
+def test_check_conbench_submit_env_requires_endpoint_and_token():
+    env = {
+        **os.environ,
+        "CONBENCH_URL": "",
+        "CONBENCH_TOKEN": "",
+    }
+
+    result = subprocess.run(
+        ["bash", "buildkite/benchmark/utils.sh", "check_conbench_submit_env"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 1
+    assert "CONBENCH_URL is required" in result.stderr
+    assert "CONBENCH_TOKEN is required" in result.stderr
+
+
 def test_benchmark_entrypoint_bootstraps_conbench_cli_before_running_python():
     script = Path("buildkite/benchmark/utils.sh").read_text()
 
     assert script.index("ensure_conbench_cli\n") < script.index(
+        "python -m buildkite.benchmark.run_benchmark_groups"
+    )
+    assert script.index("ensure_conbench_cli\n") < script.index(
+        "check_conbench_submit_env\n"
+    )
+    assert script.index("check_conbench_submit_env\n") < script.index(
         "python -m buildkite.benchmark.run_benchmark_groups"
     )
 
