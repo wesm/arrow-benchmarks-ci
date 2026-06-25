@@ -1,6 +1,10 @@
 steps:
   - label: "Run Benchmarks"
     command: source buildkite/benchmark/utils.sh create_conda_env_and_run_benchmarks
+    artifact_paths:
+      - "**/bench-results/**/*.json"
+      - "conbench-submit.jsonl"
+      - "conbench-ci-report.json"
     timeout_in_minutes: $BUILD_TIMEOUT
     retry:
       automatic:

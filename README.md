@@ -20,6 +20,13 @@ Arrow Benchmarks CI consists of
 
 Note that you can view builds for these pipelines but you can not manually schedule new builds.
 
+#### Conbench v2 migration smoke testing
+
+The Conbench v2 migration branch uses the Go CLI for result submission and CI
+report publishing. Before testing against production Apache Arrow pull requests,
+use the temporary Buildkite smoke plan in
+[Conbench v2 Buildkite Smoke Test Plan](docs/v2-conbench-smoke-test-plan.md).
+
 #### How can I add my own benchmark machine to Arrow Benchmarks CI
 
 Benchmark machines should be bare metal machines dedicated to only running benchmarks to
@@ -45,7 +52,7 @@ docker run -i \
     --env BENCHMARKS_DATA_DIR="/data" \
     --env CONBENCH_TOKEN="$CONBENCH_TOKEN" \
     --env CONBENCH_CLI="$CONBENCH_CLI" \
-    --env CONBENCH_URL="https://conbench.ursa.dev" \
+    --env CONBENCH_URL="${CONBENCH_URL:-https://conbench.arrow-dev.org}" \
     --env MACHINE="docker-container-for-testing-benchmark-builds" \
     --env PYTHON_VERSION=${PYTHON_VERSION:-"3.8"} \
     --env RUN_ID=$BUILDKITE_BUILD_ID \

@@ -30,12 +30,13 @@ total_machine_memory = psutil.virtual_memory().total
 logging.basicConfig(level=logging.DEBUG)
 
 CONBENCH_RESULTS_SUBMIT_COMMAND = (
+    "set -o pipefail; "
     'if [ -d "$CONBENCH_RESULTS_DIR" ] '
     "&& find \"$CONBENCH_RESULTS_DIR\" -maxdepth 1 -name '*.json' -print -quit "
     "| grep -q .; then "
     '"${CONBENCH_CLI:-conbench-v2}" results submit '
     '"$CONBENCH_RESULTS_DIR/*.json" --server "$CONBENCH_URL" '
-    '--jobs "${CONBENCH_SUBMIT_JOBS:-16}"; '
+    '--jobs "${CONBENCH_SUBMIT_JOBS:-16}" | tee conbench-submit.jsonl; '
     'else echo "No Conbench result payloads found in $CONBENCH_RESULTS_DIR"; '
     "exit 1; fi"
 )

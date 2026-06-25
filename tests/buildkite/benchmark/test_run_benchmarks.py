@@ -35,6 +35,21 @@ def test_mock_adapter_writes_v2_payload_file(tmp_path, monkeypatch):
     assert payload["stats"]["data"] == [1.1, 2.2, 3.3]
     assert payload["github"]["repository"] == "git@github.com:conchair/conchair"
 
+
+def test_benchmark_pipeline_retains_v2_artifacts():
+    pipeline = Path("buildkite/benchmark/pipeline.yml").read_text()
+
+    assert "artifact_paths:" in pipeline
+    assert '"**/bench-results/**/*.json"' in pipeline
+    assert '"conbench-submit.jsonl"' in pipeline
+    assert '"conbench-ci-report.json"' in pipeline
+
+
+def test_v2_submit_command_retains_jsonl_output():
+    assert "set -o pipefail;" in CONBENCH_RESULTS_SUBMIT_COMMAND
+    assert "| tee conbench-submit.jsonl" in CONBENCH_RESULTS_SUBMIT_COMMAND
+
+
 expected_setup_commands = [
     ("git clone https://github.com/wesm/benchmarks.git", ".", True),
     ("git fetch && git checkout v2-conbench-submit", "benchmarks", True),
