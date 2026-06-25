@@ -1,32 +1,60 @@
 import json
 import os
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
-RESULTS_DICT = {
-    "run_name": "very-real-benchmark",
-    "run_id": "ezf69672dc3741259aac97650414a18c",
-    "batch_id": "1z21bd2477d04ca8be0f4bad58c61757",
-    "run_reason": None,
-    "timestamp": "2202-09-16T15:42:27.527948+00:00",
-    "stats": {
-        "data": [1.1, 2.2, 3.3],
-        "unit": "ns",
-        "times": [3.3, 2.2, 1.1],
-        "time_unit": "ns",
-    },
-    "tags": {
-        "name": "very-real-benchmark",
-        "suite": "dope-benchmarks",
-        "source": "app-micro",
-    },
-    "info": {},
-    "context": {"benchmark_language": "A++"},
-    "github": {
-        "commit": "2z8c9c49a5dc4a179243268e4bb6daa5",
-        "repository": "git@github.com:conchair/conchair",
-    },
-}
+
+def env_or_none(name):
+    value = os.environ.get(name)
+    return value if value else None
+
+
+def build_payload():
+    run_id = os.environ.get("RUN_ID", f"local-smoke-{uuid.uuid4().hex}")
+    github = {
+        "commit": os.environ.get(
+            "CONBENCH_PROJECT_COMMIT",
+            os.environ.get("BENCHMARKABLE", "1111111111111111111111111111111111111111"),
+        ),
+        "repository": os.environ.get(
+            "CONBENCH_PROJECT_REPOSITORY",
+            "https://github.com/apache/arrow",
+        ),
+    }
+    pr_number = env_or_none("CONBENCH_PROJECT_PR_NUMBER") or env_or_none(
+        "BENCHMARKABLE_PR_NUMBER"
+    )
+    if pr_number is not None:
+        github["pr_number"] = int(pr_number)
+
+    return {
+        "run_name": os.environ.get("RUN_NAME", "Conbench v2 adapter smoke"),
+        "run_id": run_id,
+        "batch_id": os.environ.get("BATCH_ID", run_id),
+        "run_reason": env_or_none("RUN_REASON"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "machine_info": {
+            "name": os.environ.get(
+                "CONBENCH_MACHINE_INFO_NAME",
+                os.environ.get("MACHINE", "conbench-v2-smoke"),
+            )
+        },
+        "stats": {
+            "data": [1.1, 2.2, 3.3],
+            "unit": "ns",
+            "times": [3.3, 2.2, 1.1],
+            "time_unit": "ns",
+        },
+        "tags": {
+            "name": "very-real-benchmark",
+            "suite": "dope-benchmarks",
+            "source": "app-micro",
+        },
+        "info": {},
+        "context": {"benchmark_language": "Python"},
+        "github": github,
+    }
 
 
 def write_result_payload(payload):
@@ -43,5 +71,5 @@ def write_result_payload(payload):
 
 
 if __name__ == "__main__":
-    output_path = write_result_payload(RESULTS_DICT)
+    output_path = write_result_payload(build_payload())
     print(f"Wrote Conbench result payload: {output_path}")

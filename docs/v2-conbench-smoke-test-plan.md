@@ -32,6 +32,36 @@ the Buildkite API.
 Do not point this pipeline at the production Conbench deployment or production
 Apache Arrow pull requests during initial validation.
 
+## Adapter Preflight
+
+Before building Arrow or running the benchmark repositories, validate the
+Buildkite secret, network, artifact, and v2 submit path with the mock adapter in
+this repository. Use a one-off Buildkite command step on the same agent queue:
+
+```bash
+set -euo pipefail
+
+export CONBENCH_RESULTS_DIR="$PWD/bench-results/${BUILDKITE_BUILD_ID:-local}"
+export RUN_ID="${BUILDKITE_BUILD_ID:-local-v2-smoke}"
+export RUN_NAME="conbench v2 adapter smoke: ${BUILDKITE_BUILD_ID:-local}"
+export RUN_REASON="manual-smoke"
+export CONBENCH_MACHINE_INFO_NAME="${MACHINE:-conbench-v2-smoke-linux}"
+export CONBENCH_PROJECT_REPOSITORY="https://github.com/apache/arrow"
+export CONBENCH_PROJECT_COMMIT="${BUILDKITE_COMMIT:-1111111111111111111111111111111111111111}"
+
+python adapters/mock-adapter.py
+
+"${CONBENCH_CLI:-conbench-v2}" results submit \
+  "$CONBENCH_RESULTS_DIR/*.json" \
+  --server "$CONBENCH_URL" \
+  --jobs "${CONBENCH_SUBMIT_JOBS:-4}" | tee conbench-submit.jsonl
+```
+
+The adapter writes a normal Conbench v2 payload using the same run, machine,
+repository, commit, and optional pull request environment variables as the real
+benchmark forks. It is not performance evidence, but it proves the reporter
+token and endpoint before a long benchmark job starts.
+
 ## Buildkite Setup Prerequisites
 
 The Buildkite account needs:
@@ -155,23 +185,28 @@ artifact_paths:
 
 Run these in order:
 
-1. Standalone benchmark smoke without GitHub publishing.
+1. Adapter preflight without GitHub publishing.
+   - The command exits `0`.
+   - `bench-results/**/*.json` artifacts exist.
+   - `conbench results submit` exits `0`.
+   - The non-production Conbench UI shows the submitted smoke run.
+2. Standalone benchmark smoke without GitHub publishing.
    - The benchmark step exits `0`.
    - `**/bench-results/**/*.json` artifacts exist.
    - `conbench results submit` exits `0`.
    - The non-production Conbench UI shows the submitted run for the smoke
      machine and commit.
-2. Standalone CI report without GitHub publishing.
+3. Standalone CI report without GitHub publishing.
    - `conbench ci report --format json` exits `0` or `1`.
    - The JSON report has a typed `status` and, when available, a `report_url`.
    - Missing baseline data is reported as `action_required`, not as a transport
      or authentication error.
-3. GitHub App smoke against a scratch pull request.
+4. GitHub App smoke against a scratch pull request.
    - A Check Run named `Conbench performance report` appears on the scratch
      commit.
    - A pull request comment links to the Conbench report or Check Run.
    - No production Apache Arrow pull request receives a comment.
-4. Scheduler-path smoke.
+5. Scheduler-path smoke.
    - `buildkite/benchmark-test/pipeline.yml` creates one benchmark build for
      the selected machine.
    - `buildkite/schedule_and_publish/run_benchalerts.py` marks the run

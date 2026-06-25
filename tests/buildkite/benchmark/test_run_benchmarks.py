@@ -19,6 +19,16 @@ def test_v2_requirements_do_not_install_legacy_benchadapt_stack():
 
 def test_mock_adapter_writes_v2_payload_file(tmp_path, monkeypatch):
     monkeypatch.setenv("CONBENCH_RESULTS_DIR", str(tmp_path))
+    monkeypatch.setenv("RUN_ID", "buildkite-run-1")
+    monkeypatch.setenv("RUN_NAME", "Buildkite smoke")
+    monkeypatch.setenv("RUN_REASON", "manual-smoke")
+    monkeypatch.setenv("CONBENCH_MACHINE_INFO_NAME", "buildkite-smoke-host")
+    monkeypatch.setenv("CONBENCH_PROJECT_REPOSITORY", "https://github.com/apache/arrow")
+    monkeypatch.setenv(
+        "CONBENCH_PROJECT_COMMIT",
+        "1111111111111111111111111111111111111111",
+    )
+    monkeypatch.setenv("CONBENCH_PROJECT_PR_NUMBER", "48886")
 
     subprocess.run(
         [sys.executable, "mock-adapter.py"],
@@ -31,9 +41,16 @@ def test_mock_adapter_writes_v2_payload_file(tmp_path, monkeypatch):
     payloads = list(tmp_path.glob("*.json"))
     assert len(payloads) == 1
     payload = json.loads(payloads[0].read_text())
-    assert payload["run_id"] == "ezf69672dc3741259aac97650414a18c"
+    assert payload["run_id"] == "buildkite-run-1"
+    assert payload["run_name"] == "Buildkite smoke"
+    assert payload["run_reason"] == "manual-smoke"
+    assert payload["machine_info"]["name"] == "buildkite-smoke-host"
     assert payload["stats"]["data"] == [1.1, 2.2, 3.3]
-    assert payload["github"]["repository"] == "git@github.com:conchair/conchair"
+    assert payload["github"] == {
+        "repository": "https://github.com/apache/arrow",
+        "commit": "1111111111111111111111111111111111111111",
+        "pr_number": 48886,
+    }
 
 
 def test_benchmark_pipeline_retains_v2_artifacts():
