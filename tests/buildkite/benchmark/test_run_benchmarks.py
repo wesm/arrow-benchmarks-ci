@@ -96,6 +96,57 @@ def test_v2_submit_command_retains_jsonl_output():
     assert "| tee conbench-submit.jsonl" in CONBENCH_RESULTS_SUBMIT_COMMAND
 
 
+def test_v2_submit_command_reports_payload_and_submit_metrics():
+    assert "Conbench payload files:" in CONBENCH_RESULTS_SUBMIT_COMMAND
+    assert "Conbench payload bytes:" in CONBENCH_RESULTS_SUBMIT_COMMAND
+    assert "Conbench submit rows:" in CONBENCH_RESULTS_SUBMIT_COMMAND
+    assert "Conbench submit seconds:" in CONBENCH_RESULTS_SUBMIT_COMMAND
+
+
+def test_v2_submit_command_metrics_smoke(tmp_path):
+    results_dir = tmp_path / "bench-results"
+    results_dir.mkdir()
+    (results_dir / "one.json").write_text("{}\n")
+    (results_dir / "two.json").write_text('{"x":1}\n')
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    conbench = fake_bin / "conbench-v2"
+    conbench.write_text(
+        "#!/bin/sh\n"
+        "printf '%s\\n' "
+        "'{\"ok\":true,\"id\":\"one\"}' "
+        "'{\"ok\":true,\"id\":\"two\"}'\n"
+    )
+    conbench.chmod(0o700)
+
+    env = {
+        **os.environ,
+        "CONBENCH_RESULTS_DIR": str(results_dir),
+        "CONBENCH_URL": "http://conbench.example",
+        "PATH": f"{fake_bin}:{os.environ['PATH']}",
+    }
+
+    result = subprocess.run(
+        ["bash", "-c", CONBENCH_RESULTS_SUBMIT_COMMAND],
+        cwd=tmp_path,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    assert result.returncode == 0
+    assert "Conbench payload files: 2" in result.stdout
+    assert "Conbench payload bytes: 11" in result.stdout
+    assert "Conbench submit rows: 2" in result.stdout
+    assert "Conbench submit seconds:" in result.stdout
+    assert (tmp_path / "conbench-submit.jsonl").read_text().splitlines() == [
+        '{"ok":true,"id":"one"}',
+        '{"ok":true,"id":"two"}',
+    ]
+
+
 def test_v2_submit_command_defaults_to_measured_parallelism():
     assert '--jobs "${CONBENCH_SUBMIT_JOBS:-64}"' in CONBENCH_RESULTS_SUBMIT_COMMAND
 

@@ -34,9 +34,22 @@ CONBENCH_RESULTS_SUBMIT_COMMAND = (
     'if [ -d "$CONBENCH_RESULTS_DIR" ] '
     "&& find \"$CONBENCH_RESULTS_DIR\" -maxdepth 1 -name '*.json' -print -quit "
     "| grep -q .; then "
+    "payload_count=$(find \"$CONBENCH_RESULTS_DIR\" -maxdepth 1 -type f -name '*.json' "
+    "| wc -l | tr -d '[:space:]'); "
+    "payload_bytes=$(find \"$CONBENCH_RESULTS_DIR\" -maxdepth 1 -type f -name '*.json' "
+    "-print0 | xargs -0 wc -c | awk 'END {print $1}'); "
+    'echo "Conbench payload files: $payload_count"; '
+    'echo "Conbench payload bytes: $payload_bytes"; '
+    "submit_start=$(date +%s); "
     '"${CONBENCH_CLI:-conbench-v2}" results submit '
     '"$CONBENCH_RESULTS_DIR/*.json" --server "$CONBENCH_URL" '
     '--jobs "${CONBENCH_SUBMIT_JOBS:-64}" | tee conbench-submit.jsonl; '
+    "submit_status=${PIPESTATUS[0]}; "
+    "submit_end=$(date +%s); "
+    "submit_rows=$(wc -l < conbench-submit.jsonl | tr -d '[:space:]'); "
+    'echo "Conbench submit rows: $submit_rows"; '
+    'echo "Conbench submit seconds: $((submit_end - submit_start))"; '
+    'exit "$submit_status"; '
     'else echo "No Conbench result payloads found in $CONBENCH_RESULTS_DIR"; '
     "exit 1; fi"
 )

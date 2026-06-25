@@ -172,6 +172,12 @@ The current benchmark runner writes result payloads under:
 <benchmark-repo>/bench-results/<RUN_ID>/*.json
 ```
 
+Before `conbench results submit` runs, the benchmark runner prints the result
+payload file count and total payload bytes. After submission, it prints the
+number of JSONL rows written to `conbench-submit.jsonl` and the submit wall time
+in seconds. These lines are the first place to look when deciding whether a
+benchmark group needs lower submit parallelism or future batch-ingest work.
+
 Before relying on a Buildkite run as migration evidence, confirm that the
 pipeline uploads those JSON files as artifacts. If artifact upload is missing
 from the pipeline settings, add:
@@ -247,6 +253,8 @@ corresponding migration issue:
 - branch and commit of `wesm/benchmarks` and `wesm/arrowbench`, if used,
 - selected `FILTERS`,
 - count of uploaded result JSON artifacts,
+- `Conbench payload files`, `Conbench payload bytes`,
+  `Conbench submit rows`, and `Conbench submit seconds` from the Buildkite log,
 - `conbench results submit` status,
 - CI report status and report URL, and
 - scratch GitHub PR URL when GitHub publishing is tested.
