@@ -87,7 +87,7 @@ secrets:
 | `CONBENCH_URL` | no | Non-production Conbench v2 endpoint, such as the prod-clone deployment. |
 | `CONBENCH_TOKEN` | yes | Reporter API token minted by `conbench admin tokens create`. |
 | `CONBENCH_CLI` | no | CLI executable name or path. Use `conbench-v2` unless the agent installs a different name. |
-| `CONBENCH_SUBMIT_JOBS` | no | Result submission parallelism. Start with `16`; raise only after endpoint latency is measured. |
+| `CONBENCH_SUBMIT_JOBS` | no | Result submission parallelism. Defaults to `64` for one-file-per-result workloads; lower it if the endpoint or database shows pressure. |
 | `BENCHMARKABLE_TYPE` | no | Use `arrow-commit` for the first smoke. |
 | `BENCHMARKABLE` | no | Apache Arrow commit SHA to benchmark. Prefer a recent non-production test SHA. |
 | `BENCHMARKABLE_PR_NUMBER` | no | Pull request number for report metadata when testing PR-shaped runs. |

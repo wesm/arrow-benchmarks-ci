@@ -67,6 +67,10 @@ def test_v2_submit_command_retains_jsonl_output():
     assert "| tee conbench-submit.jsonl" in CONBENCH_RESULTS_SUBMIT_COMMAND
 
 
+def test_v2_submit_command_defaults_to_measured_parallelism():
+    assert '--jobs "${CONBENCH_SUBMIT_JOBS:-64}"' in CONBENCH_RESULTS_SUBMIT_COMMAND
+
+
 expected_setup_commands = [
     ("git clone https://github.com/wesm/benchmarks.git", ".", True),
     ("git fetch && git checkout v2-conbench-submit", "benchmarks", True),
