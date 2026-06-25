@@ -1,19 +1,25 @@
 from copy import deepcopy
 from pathlib import Path
 
-from buildkite.benchmark.run import MockRun, repos_with_benchmark_groups
-from tests.helpers import (
-    machine_configs,
-    filter_with_r_only_benchmarks,
-    filter_with_python_only_benchmarks,
-    filter_with_cpp_only_benchmarks,
-    filter_with_file_only_benchmarks,
-)
+from buildkite.benchmark.run import (CONBENCH_RESULTS_SUBMIT_COMMAND, MockRun,
+                                     repos_with_benchmark_groups)
+from tests.helpers import (filter_with_cpp_only_benchmarks,
+                           filter_with_file_only_benchmarks,
+                           filter_with_python_only_benchmarks,
+                           filter_with_r_only_benchmarks, machine_configs)
 
 expected_setup_commands = [
-    ("git clone https://github.com/arctosalliance/benchmarks.git", ".", True),
-    ("git fetch && git checkout main", "benchmarks", True),
+    ("git clone https://github.com/wesm/benchmarks.git", ".", True),
+    ("git fetch && git checkout v2-conbench-submit", "benchmarks", True),
     ("pip install -e .", "benchmarks", True),
+]
+
+expected_submit_command = [
+    (
+        CONBENCH_RESULTS_SUBMIT_COMMAND,
+        ".",
+        True,
+    )
 ]
 
 expected_setup_commands_for_cpp_benchmarks = [
@@ -125,22 +131,26 @@ tests = [
         "expected_commands": expected_setup_commands
         + expected_commands_for_cpp_benchmarks
         + expected_commands_for_python_benchmarks
-        + expected_commands_for_r_benchmarks,
+        + expected_commands_for_r_benchmarks
+        + expected_submit_command,
     },
     {
         "run_filters": filter_with_python_only_benchmarks,
         "expected_commands": expected_setup_commands
-        + expected_commands_for_python_benchmarks,
+        + expected_commands_for_python_benchmarks
+        + expected_submit_command,
     },
     {
         "run_filters": filter_with_r_only_benchmarks,
         "expected_commands": expected_setup_commands
-        + expected_commands_for_r_benchmarks,
+        + expected_commands_for_r_benchmarks
+        + expected_submit_command,
     },
     {
         "run_filters": filter_with_cpp_only_benchmarks,
         "expected_commands": expected_setup_commands
-        + expected_commands_for_cpp_benchmarks,
+        + expected_commands_for_cpp_benchmarks
+        + expected_submit_command,
     },
     {
         "run_filters": {"langs": {"Python": {"names": ["dataset-read"]}}},
@@ -152,7 +162,8 @@ tests = [
                 "benchmarks",
                 False,
             ),
-        ],
+        ]
+        + expected_submit_command,
     },
     {
         "run_filters": filter_with_file_only_benchmarks,
@@ -182,14 +193,16 @@ tests = [
                 "benchmarks",
                 False,
             ),
-        ],
+        ]
+        + expected_submit_command,
     },
     {
         "run_filters": {
             "command": "cpp-micro --suite-filter=arrow-compute-vector-selection-benchmark --benchmark-filter=TakeStringRandomIndicesWithNulls/262144/2 --iterations=3"
         },
         "expected_commands": expected_setup_commands
-        + expected_commands_for_cpp_benchmarks_with_one_command_only,
+        + expected_commands_for_cpp_benchmarks_with_one_command_only
+        + expected_submit_command,
     },
     {
         "run_filters": machine_configs["ursa-i9-9960x"]["default_filters"][
@@ -197,7 +210,8 @@ tests = [
         ],
         "expected_commands": expected_setup_commands
         + expected_commands_for_python_benchmarks
-        + expected_commands_for_r_benchmarks,
+        + expected_commands_for_r_benchmarks
+        + expected_submit_command,
     },
 ]
 
@@ -206,7 +220,7 @@ def test_run_benchmarks():
     repo = [
         deepcopy(x)
         for x in repos_with_benchmark_groups
-        if x["repo"].endswith("arctosalliance/benchmarks.git")
+        if x["repo"].endswith("wesm/benchmarks.git")
     ][0]
     # These tests should use benchmarks.json in benchmarks repo but should not be affected any new benchmarks
     # that added since 2b217db086260ab3bb243e26253b7c1de0180777
@@ -232,7 +246,7 @@ def test_run_arrowbench_benchmarks(monkeypatch):
     repo = [
         deepcopy(x)
         for x in repos_with_benchmark_groups
-        if x["repo"].endswith("arrowbench.git")
+        if x["repo"].endswith("wesm/arrowbench.git")
     ][0]
     # These tests should use benchmarks.json in arrowbench repo but should not be affected any new benchmarks
     # that added since c5e5af241f17d27aadc01548f283a2a977151b91
@@ -248,24 +262,18 @@ def test_run_arrowbench_benchmarks(monkeypatch):
 
     expected_setup_commands = (
         [
-            ("git clone https://github.com/arctosalliance/arrowbench.git", ".", True),
-            ("git fetch && git checkout main", "arrowbench", True),
+            ("git clone https://github.com/wesm/arrowbench.git", ".", True),
+            ("git fetch && git checkout v2-conbench-payloads", "arrowbench", True),
         ]
         + expected_setup_commands_for_r_benchmarks
-        + [
-            (
-                "pip install 'benchconnect@git+https://github.com/conbench/conbench.git@main#subdirectory=benchconnect' && R --vanilla -e 'stopifnot(arrowbench:::benchconnect_available())'",
-                "arrowbench",
-                True,
-            ),
-        ]
     )
 
     run = MockRun(repo, filters=filter_with_arrowbench_r_only_benchmarks)
     run.benchmarkable_type = "arrow-commit"
     run.run_all_benchmark_groups()
-    assert run.executor.executed_commands[:-1] == expected_setup_commands
-    run_command = run.executor.executed_commands[-1]
+    assert run.executor.executed_commands[: len(expected_setup_commands)] == expected_setup_commands
+    run_command = run.executor.executed_commands[len(expected_setup_commands)]
+    assert run.executor.executed_commands[-1:] == expected_submit_command
     # runs an ephemeral tempfile
     assert run_command[0].startswith("R --vanilla -f ")
     assert run_command[0].endswith(".R")
@@ -305,7 +313,7 @@ def test_run_adapter_benchmarks():
     repo = [
         deepcopy(x)
         for x in repos_with_benchmark_groups
-        if x["repo"].endswith("arrow-benchmarks-ci.git")
+        if x["repo"].endswith("wesm/arrow-benchmarks-ci.git")
     ][0]
     # These tests should use benchmarks.json in arrow-benchmarks-ci repo but should not be affected any new benchmarks
     # that added since 1ca33e8800a11624faf89a85af817ca83e473f56
@@ -325,12 +333,12 @@ def test_run_adapter_benchmarks():
 
     expected_setup_commands = [
         (
-            "git clone https://github.com/arctosalliance/arrow-benchmarks-ci.git",
+            "git clone https://github.com/wesm/arrow-benchmarks-ci.git",
             ".",
             True,
         ),
         (
-            "git fetch && git checkout main",
+            "git fetch && git checkout v2-conbench-ci-report",
             "arrow-benchmarks-ci/adapters",
             True,
         ),

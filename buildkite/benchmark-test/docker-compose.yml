@@ -8,8 +8,8 @@ services:
       BENCHMARKABLE: ${BENCHMARKABLE:-641554b0bcce587549bfcfd0cde3cb4bc23054aa}
       BENCHMARKABLE_TYPE: ${BENCHMARKABLE_TYPE:-arrow-commit}
       BENCHMARKS_DATA_DIR: "/data"
-      CONBENCH_EMAIL: ${CONBENCH_EMAIL}
-      CONBENCH_PASSWORD: ${CONBENCH_PASSWORD}"
+      CONBENCH_CLI: ${CONBENCH_CLI:-conbench-v2}
+      CONBENCH_TOKEN: ${CONBENCH_TOKEN}
       CONBENCH_URL: "https://conbench.arrow-dev.org"
       FILTERS: "${FILTERS:-{}}"
       MACHINE: "docker-container-for-testing-benchmark-builds"

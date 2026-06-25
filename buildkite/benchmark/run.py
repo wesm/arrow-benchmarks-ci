@@ -29,15 +29,27 @@ build_dir = os.getcwd()
 total_machine_memory = psutil.virtual_memory().total
 logging.basicConfig(level=logging.DEBUG)
 
+CONBENCH_RESULTS_SUBMIT_COMMAND = (
+    'if [ -d "$CONBENCH_RESULTS_DIR" ] '
+    "&& find \"$CONBENCH_RESULTS_DIR\" -maxdepth 1 -name '*.json' -print -quit "
+    "| grep -q .; then "
+    '"${CONBENCH_CLI:-conbench-v2}" results submit '
+    '"$CONBENCH_RESULTS_DIR/*.json" --server "$CONBENCH_URL" '
+    '--jobs "${CONBENCH_SUBMIT_JOBS:-16}"; '
+    'else echo "No Conbench result payloads found in $CONBENCH_RESULTS_DIR"; '
+    "exit 1; fi"
+)
+
 repos_with_benchmark_groups = [
     {
         "benchmarkable_type": "arrow-commit",
-        "repo": "https://github.com/arctosalliance/benchmarks.git",
+        "repo": "https://github.com/wesm/benchmarks.git",
         "root": "benchmarks",
-        "branch": "main",
+        "branch": "v2-conbench-submit",
         "setup_commands": ["pip install -e ."],
         "path_to_benchmark_groups_list_json": "benchmarks/benchmarks.json",
-        "url_for_benchmark_groups_list_json": "https://raw.githubusercontent.com/arctosalliance/benchmarks/main/benchmarks.json",
+        "url_for_benchmark_groups_list_json": "https://raw.githubusercontent.com/wesm/benchmarks/v2-conbench-submit/benchmarks.json",
+        "submit_results": True,
         "setup_commands_for_lang_benchmarks": {  # These commands need to be defined as functions in buildkite/benchmark/utils.sh
             "C++": ["install_minio"],
             "Python": ["create_data_dir"],
@@ -58,12 +70,13 @@ repos_with_benchmark_groups = [
     },
     {
         "benchmarkable_type": "arrow-commit",
-        "repo": "https://github.com/arctosalliance/arrowbench.git",
+        "repo": "https://github.com/wesm/arrowbench.git",
         "root": "arrowbench",
-        "branch": "main",
+        "branch": "v2-conbench-payloads",
         "setup_commands": [],
         "path_to_benchmark_groups_list_json": "arrowbench/inst/benchmarks.json",
-        "url_for_benchmark_groups_list_json": "https://raw.githubusercontent.com/arctosalliance/arrowbench/main/inst/benchmarks.json",
+        "url_for_benchmark_groups_list_json": "https://raw.githubusercontent.com/wesm/arrowbench/v2-conbench-payloads/inst/benchmarks.json",
+        "submit_results": True,
         "setup_commands_for_lang_benchmarks": {  # These commands need to be defined as functions in buildkite/benchmark/utils.sh
             "R": [
                 "build_arrow_r",
@@ -77,12 +90,12 @@ repos_with_benchmark_groups = [
     },
     {
         "benchmarkable_type": "arrow-commit",
-        "repo": "https://github.com/arctosalliance/arrow-benchmarks-ci.git",
+        "repo": "https://github.com/wesm/arrow-benchmarks-ci.git",
         "root": "arrow-benchmarks-ci/adapters",
-        "branch": "main",
+        "branch": "v2-conbench-ci-report",
         "setup_commands": ["pip install -r requirements.txt"],
         "path_to_benchmark_groups_list_json": "arrow-benchmarks-ci/adapters/benchmarks.json",
-        "url_for_benchmark_groups_list_json": "https://raw.githubusercontent.com/arctosalliance/arrow-benchmarks-ci/main/adapters/benchmarks.json",
+        "url_for_benchmark_groups_list_json": "https://raw.githubusercontent.com/wesm/arrow-benchmarks-ci/v2-conbench-ci-report/adapters/benchmarks.json",
         "setup_commands_for_lang_benchmarks": {  # These commands need to be defined as functions in buildkite/benchmark/utils.sh
             "C++": [],
             "Python": ["create_data_dir"],
@@ -391,12 +404,6 @@ class ArrowbenchBenchmarkGroupsRunner(BenchmarkGroupsRunner):
     def run_benchmark_groups(self, benchmark_groups: List[BenchmarkGroup]) -> None:
         Run.print_env_vars()
 
-        self.executor.execute_command(
-            "pip install 'benchconnect@git+https://github.com/arctosalliance/conbench.git@main#subdirectory=benchconnect' && R --vanilla -e 'stopifnot(arrowbench:::benchconnect_available())'",
-            path=self.root,
-            exit_on_failure=True,
-        )
-
         # NOTE: `bm.command` is the raw arrowbench name; `bm.name` is f"arrowbench/{bm.command}"
         # to disambiguate from labs/benchmarks versions when filtering.
         bm_names = [bm.command for bm in benchmark_groups]
@@ -463,6 +470,7 @@ class Run:
             "setup_commands_for_lang_benchmarks"
         ]
         self.env_vars = repo_params["env_vars"]
+        self.submit_results = repo_params.get("submit_results", False)
         self.benchmark_groups = []
         self.executor = CommandExecutor()
 
@@ -484,15 +492,11 @@ class Run:
             self.executor.execute_command(command, self.root)
 
     def setup_conbench_credentials(self):
-        os.environ["CONBENCH_MACHINE_INFO_NAME"] = os.getenv("MACHINE")
-
         with open(f"{build_dir}/{self.root}/.conbench", "w") as f:
             f.writelines(
                 [
-                    f"url: {os.getenv('CONBENCH_URL')}\n",
-                    f"email: {os.getenv('CONBENCH_EMAIL')}\n",
-                    f"password: {os.getenv('CONBENCH_PASSWORD')}\n",
-                    f"host_name: {os.getenv('MACHINE')}\n",
+                    f"url: {os.getenv('CONBENCH_URL', '')}\n",
+                    f"host_name: {os.getenv('MACHINE', '')}\n",
                 ]
             )
 
@@ -574,8 +578,27 @@ class Run:
         )
 
     def set_env_vars(self):
+        default_env_vars = {
+            "CONBENCH_MACHINE_INFO_NAME": os.getenv("MACHINE", ""),
+            "CONBENCH_PROJECT_REPOSITORY": "https://github.com/apache/arrow",
+            "CONBENCH_PROJECT_COMMIT": benchmarkable_id or "",
+            "CONBENCH_PROJECT_PR_NUMBER": os.getenv("BENCHMARKABLE_PR_NUMBER", ""),
+            "CONBENCH_RESULTS_DIR": str(
+                Path(build_dir) / self.root / "bench-results" / (run_id or "local")
+            ),
+        }
+        for var, value in default_env_vars.items():
+            if value:
+                os.environ[var] = value
+
         for var, value in self.env_vars.items():
             os.environ[var] = value
+
+    def submit_conbench_results(self):
+        self.executor.execute_command(
+            CONBENCH_RESULTS_SUBMIT_COMMAND,
+            exit_on_failure=True,
+        )
 
     @staticmethod
     def print_env_vars():
@@ -669,6 +692,9 @@ class Run:
 
         self.print_results()
 
+        if self.submit_results and self.benchmark_groups:
+            self.submit_conbench_results()
+
         if len(self.failed_benchmark_groups()) > 0:
             raise Exception("Build has failed benchmarks.")
 
@@ -686,7 +712,7 @@ class MockCommandExecutor(CommandExecutor):
 # 1. testing Run().run_all_benchmark_groups method in non-benchmark machine environment without executing any
 # shell commands
 # 2. checking if provided benchmark filters on PR benchmark request comments do not filter out all benchmarks in
-# https://raw.githubusercontent.com/arctosalliance/benchmarks/main/benchmarks.json
+# https://raw.githubusercontent.com/wesm/benchmarks/v2-conbench-submit/benchmarks.json
 class MockRun(Run):
     def __init__(self, repo_params, filters):
         super().__init__(repo_params)

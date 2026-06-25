@@ -51,10 +51,10 @@ mutation {
 }
 ```
 
-### Create CONBENCH_EMAIL and CONBENCH_PASSWORD for Benchmark Machine
-- Go to https://conbench.ursa.dev/register/ and register new user with
-    - Name = new-machine-name
-    - User = new-machine-name@some-domain.com
+### Create CONBENCH_TOKEN for Benchmark Machine
+- Mint a Conbench API token for the benchmark reporter.
+- Store the plaintext token as `CONBENCH_TOKEN` in the benchmark machine
+  environment or Buildkite queue secret.
 
 ### Create ec2 benchmark machine
 - Go to https://us-east-1.console.aws.amazon.com/ec2/v2/home?region=us-east-1#Instances:

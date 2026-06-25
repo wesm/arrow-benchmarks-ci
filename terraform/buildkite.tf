@@ -167,7 +167,7 @@ resource "buildkite_pipeline" "conbench_pipelines" {
     BENCHMARKS_DATA_PUBLIC: "true"
     CONBENCH_INTENDED_BASE_URL: "${var.conbench_url}"
     CONBENCH_URL: "${var.conbench_url}"
-    CONBENCH_PASSWORD:    "${var.conbench_api_password}"
+    CONBENCH_API_TOKEN:   "${var.conbench_api_token}"
     GITHUB_API_TOKEN:     "${var.github_api_token}"
     DB_NAME:              "${var.db_name_conbench}"
     DB_PORT:              "${var.db_port}"

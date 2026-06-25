@@ -122,7 +122,7 @@ class BenchalertsRun(Base, BaseMixin):
             raise RuntimeError("CONBENCH_URL is required to publish Conbench reports")
 
         cmd = [
-            os.getenv("CONBENCH_CLI", "conbench"),
+            os.getenv("CONBENCH_CLI", "conbench-v2"),
             "ci",
             "report",
             "--server",

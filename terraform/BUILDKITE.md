@@ -70,9 +70,9 @@ If your benchmarks need specific environment variables (API tokens, credentials,
 # Create environment file for a specific queue
 cat > env <<EOF
 export ARROW_BCI_URL=https://your-arrow-bci-url
-export CONBENCH_EMAIL=benchmark@example.com
-export CONBENCH_PASSWORD=your-password
+export CONBENCH_TOKEN=your-conbench-api-token
 export CONBENCH_URL=https://conbench.arrow-dev.org
+export CONBENCH_CLI=conbench-v2
 export GITHUB_PAT=your-github-token
 EOF
 

@@ -113,7 +113,7 @@ def test_run_benchalerts_on_pr_request(client, monkeypatch):
     run_benchalerts()
     assert len(conbench_calls) == 1
     cmd = conbench_calls[0]
-    assert cmd[:3] == ["conbench", "ci", "report"]
+    assert cmd[:3] == ["conbench-v2", "ci", "report"]
     assert flag_value(cmd, "--server") == Config.CONBENCH_URL
     assert flag_value(cmd, "--repository") == "apache/arrow"
     assert flag_value(cmd, "--commit") == test_benchmarkable_id
@@ -161,7 +161,7 @@ def test_run_benchalerts_on_merged_pull_requests(monkeypatch):
     run_benchalerts()
     assert len(conbench_calls) == 1
     cmd = conbench_calls[0]
-    assert cmd[:3] == ["conbench", "ci", "report"]
+    assert cmd[:3] == ["conbench-v2", "ci", "report"]
     assert flag_value(cmd, "--server") == Config.CONBENCH_URL
     assert flag_value(cmd, "--repository") == "apache/arrow"
     assert flag_value(cmd, "--commit") == contender.id

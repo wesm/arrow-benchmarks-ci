@@ -31,9 +31,9 @@ touch "$(brew --prefix)"/etc/buildkite-agent/hooks/environment
 {
   echo "export ARROW_BCI_URL=$ARROW_BCI_URL"
   echo "export ARROW_BCI_API_ACCESS_TOKEN=$ARROW_BCI_API_ACCESS_TOKEN"
-  echo "export CONBENCH_EMAIL=$CONBENCH_EMAIL"
-  echo "export CONBENCH_PASSWORD=$CONBENCH_PASSWORD"
+  echo "export CONBENCH_TOKEN=$CONBENCH_TOKEN"
   echo "export CONBENCH_URL=$CONBENCH_URL"
+  echo "export CONBENCH_CLI=${CONBENCH_CLI:-conbench-v2}"
   echo "export MACHINE=$MACHINE"
   echo "export GITHUB_PAT=$GITHUB_PAT"
 } >> "$(brew --prefix)"/etc/buildkite-agent/hooks/environment

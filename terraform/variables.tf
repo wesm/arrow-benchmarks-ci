@@ -147,11 +147,11 @@ variable "db_password_arrow_bci" {
   }
 }
 
-variable "conbench_api_password" {
-    description = "Conbench API password for application access"
-    type        = string
-    sensitive   = true
-    default     = ""
+variable "conbench_api_token" {
+  description = "Conbench static API token for application access"
+  type        = string
+  sensitive   = true
+  default     = ""
 }
 
 variable "db_backup_retention_period" {

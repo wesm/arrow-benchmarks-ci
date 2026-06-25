@@ -115,7 +115,10 @@ install_minio() {
 
 install_arrowbench() {
   # do I need to cd into benchmarks dir?
-  git clone https://github.com/arctosalliance/arrowbench.git
+  git clone https://github.com/wesm/arrowbench.git
+  pushd arrowbench
+  git checkout v2-conbench-payloads
+  popd
   R -e "remotes::install_local('./arrowbench')"
 }
 

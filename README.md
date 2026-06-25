@@ -29,9 +29,10 @@ Please use this doc to add a new benchmark machine: [How to Add New Benchmark Ma
 
 #### How can I test benchmark builds that run on ursa-i9-9960x and ursa-thinkcentre-m75q locally
 ```bash
-# Set env vars for conbench credentials if you need benchmark results to be posted to Conbench during testing
-export CONBENCH_EMAIL=<conbench_user_id>
-export CONBENCH_PASSWORD=<conbench_user_password>
+# Set env vars if benchmark results should be posted to v2 Conbench.
+# The v2 CLI must be installed on PATH as conbench-v2, or set CONBENCH_CLI.
+export CONBENCH_TOKEN=<conbench_api_token>
+export CONBENCH_CLI=${CONBENCH_CLI:-conbench-v2}
 
 # Build docker image with Arrow dependencies installed
 cd ~/arrow-benchmarks-ci
@@ -42,8 +43,8 @@ docker run -i \
     --env BENCHMARKABLE=${BENCHMARKABLE:-"ac2d8ff481816299e2b047bf8a4546baccc3d050"} \
     --env BENCHMARKABLE_TYPE=${BENCHMARKABLE_TYPE:-"arrow-commit"} \
     --env BENCHMARKS_DATA_DIR="/data" \
-    --env CONBENCH_EMAIL=$CONBENCH_EMAIL \
-    --env CONBENCH_PASSWORD="$CONBENCH_PASSWORD" \
+    --env CONBENCH_TOKEN="$CONBENCH_TOKEN" \
+    --env CONBENCH_CLI="$CONBENCH_CLI" \
     --env CONBENCH_URL="https://conbench.ursa.dev" \
     --env MACHINE="docker-container-for-testing-benchmark-builds" \
     --env PYTHON_VERSION=${PYTHON_VERSION:-"3.8"} \
