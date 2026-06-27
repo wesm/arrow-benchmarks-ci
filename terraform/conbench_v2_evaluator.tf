@@ -235,9 +235,11 @@ resource "aws_route53_record" "conbench_v2" {
   type    = "A"
 
   alias {
-    name                   = var.conbench_v2_elb_dns_name
-    zone_id                = var.conbench_v2_elb_zone_id
-    evaluate_target_health = true
+    name    = var.conbench_v2_elb_dns_name
+    zone_id = var.conbench_v2_elb_zone_id
+    # The evaluator is a review endpoint; let the ELB own backend health while
+    # Route53 consistently answers the alias during rollout.
+    evaluate_target_health = false
   }
 
   lifecycle {
